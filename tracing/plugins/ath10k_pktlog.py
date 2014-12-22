@@ -243,17 +243,15 @@ def ath10k_htt_pktlog_handler(pevent, trace_seq, event):
         pass
 
 def ath10k_htt_rx_desc_handler(pevent, trace_seq, event):
-    tsf = long(event['tsf'])
     rxdesc = event['rxdesc'].data
 
-    trace_seq.puts('tsf %d len %d\n' % (tsf, len(rxdesc)))
+    trace_seq.puts('len %d\n' % (len(rxdesc)))
 
     hdr = Ath10kPktlogHdr()
     hdr.flags = (1 << ATH10K_PKTLOG_FLG_TYPE_REMOTE_S)
     hdr.missed_cnt = 0
     hdr.log_type = ATH10K_PKTLOG_TYPE_RX_STAT
     hdr.size = len(rxdesc)
-    hdr.timestamp = tsf
 
     output_write(hdr.pack())
     output_write(rxdesc)
