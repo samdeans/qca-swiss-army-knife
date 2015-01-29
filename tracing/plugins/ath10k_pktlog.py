@@ -213,7 +213,11 @@ def pktlog_tx_msdu_id(buf):
         if len(id) >= 2:
             msdu_id, = struct.unpack_from('<H', id);
             id = id[2:]
-            msdu_len = msdu_len_tbl[msdu_id]
+            if msdu_id not in msdu_len_tbl:
+                dbg('msdu_id %d not found from msdu_len_tbl' % (msdu_id))
+                msdu_len = 0
+            else:
+                msdu_len = msdu_len_tbl[msdu_id]
         else:
             msdu_len = 0
         output_write(struct.pack('H', msdu_len))
