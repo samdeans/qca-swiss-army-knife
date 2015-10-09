@@ -71,9 +71,9 @@ def run_gcc():
     # to disable utf-8 from gcc, easier to paste that way
     os.environ['LC_CTYPE'] = 'C'
 
-    cmd = ['rm', '-f', DRIVER_DIR + '/*.o']
+    cmd = 'rm -f %s/*.o' % (DRIVER_DIR)
     logger.debug('%s' % cmd)
-    subprocess.call(cmd)
+    subprocess.call(cmd, shell=True)
 
     cmd = ['make', '-k', '-j', cores, DRIVER_DIR]
     logger.debug('%s' % cmd)
