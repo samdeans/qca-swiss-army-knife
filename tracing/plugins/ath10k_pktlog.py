@@ -255,10 +255,18 @@ def ath10k_htt_rx_desc_handler(pevent, trace_seq, event):
     hdr.flags = (1 << ATH10K_PKTLOG_FLG_TYPE_REMOTE_S)
     hdr.missed_cnt = 0
     hdr.log_type = ATH10K_PKTLOG_TYPE_RX_STAT
-    hdr.size = len(rxdesc)
+    #TODO Fix this according to board type
+    #hdr.size = len(rxdesc)
+    hdr.size = 248 
 
     output_write(hdr.pack())
-    output_write(rxdesc)
+    #output_write(rxdesc)
+    #This change is required for QCA988X chip sets
+    #We are skipping QCA99X0 data here
+    output_write(rxdesc[0 : 32])
+    output_write(rxdesc[36 : 56])
+    output_write(rxdesc[76 : 208])
+    output_write(rxdesc[228 : ])
 
 def ath10k_htt_tx_handler(pevent, trace_seq, event):
     global msdu_len_tbl
