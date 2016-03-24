@@ -30,10 +30,15 @@ CHECKPATCH_IGNORE = [ 'MSLEEP',
                       'USLEEP_RANGE',
                       'PRINTK_WITHOUT_KERN_LEVEL',
                       'NETWORKING_BLOCK_COMMENT_STYLE',
+                      'BLOCK_COMMENT_STYLE',
                       'LINUX_VERSION_CODE',
                       'COMPLEX_MACRO',
                       'PREFER_DEV_LEVEL',
                       'PREFER_PR_LEVEL',
+                      'COMPARISON_TO_NULL',
+                      'BIT_MACRO',
+                      'CONSTANT_COMPARISON',
+                      'MACRO_WITH_FLOW_CONTROL'
 ]
 
 CHECKPATCH_OPTS = [ '--strict', '-q', '--terse', '--no-summary',
