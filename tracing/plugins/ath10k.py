@@ -60,6 +60,9 @@ HTT_DBG_STATS_SND_INFO		 = 7
 HTT_DBG_STATS_ERROR_INFO	 = 8
 HTT_DBG_STATS_TX_SELFGEN_INFO	 = 9
 HTT_DBG_STATS_TX_MU_INFO	 = 10
+HTT_DBG_STATS_SIFS_RESP_INFO	 = 11
+HTT_DBG_STATS_RESET_INFO	 = 12
+HTT_DBG_STATS_MAC_WDOG_INFO	 = 13
 
 def hexdump(buf, prefix=None):
     s = binascii.b2a_hex(buf)
@@ -756,6 +759,61 @@ def parse_htt_stats_tx_mu(pevent, trace_seq, buf, tlv_length):
 
 	trace_seq.puts("mu_ampdu_underrun_usr[%d] : %d " % (i, mu_ampdu_underrun_usr))
 
+def  parse_htt_stats_sifs_resp(pevent, trace_seq, buf, tlv_length):
+    msg_base_len = 32
+
+    l = msg_base_len
+    hdr = struct.unpack("<IIIIIIII", buf[0:l])
+    buf = buf[l:]
+
+    ps_poll_trigger = hdr[0]
+    uapsd_trigger = hdr[1]
+    qb_data_trigger_exp = hdr[2]
+    qb_data_trigger_imp = hdr[3]
+    qb_bar_trigger_exp = hdr[4]
+    qb_bar_trigger_imp = hdr[5]
+    sifs_resp_data = hdr[6]
+    sifs_resp_err = hdr[7]
+
+    trace_seq.puts("\t\t\t SIFS Resp Rx Stats\ntps_poll_trigger : %d uapsd_trigger : %d qb_data_trigger[exp] : %d qb_data_trigger[imp] : %d qb_bar_trigger[exp] : %d qb_bar_trigger[imp] : %d\n\t\t\t SIFS Resp Tx Stats\nsifs_resp_data : %d sifs_resp_err : %d" % (ps_poll_trigger, uapsd_trigger, qb_data_trigger_exp, qb_data_trigger_imp, qb_bar_trigger_exp, qb_bar_trigger_imp, sifs_resp_data, sifs_resp_err))
+
+def parse_htt_stats_reset(pevent, trace_seq, buf, tlv_length):
+    msg_base_len = 16
+
+    l = msg_base_len
+    hdr = struct.unpack("<HHHHHHHH", buf[0:l])
+    buf = buf[l:]
+
+    warm_reset = hdr[0]
+    cold_reset = hdr[1]
+    tx_flush = hdr[2]
+    tx_glb_reset = hdr[3]
+    tx_txq_reset = hdr[4]
+    rx_timeout_reset = hdr[5]
+    hw_status_mismatch = hdr[6]
+    hw_status_multi_mismatch = hdr[7]
+
+    trace_seq.puts("\t\t\t Reset Stats\nwarm_reset : %d cold_reset : %d tx_flush : %d tx_glb_reset : %d tx_txq_reset : %d rx_timeout_reset : %d hw_status_mismatch : %d hw_status_multi_mismatch : %d" % (warm_reset, cold_reset, tx_flush, tx_glb_reset, tx_txq_reset, rx_timeout_reset, hw_status_mismatch, hw_status_multi_mismatch))
+
+def parse_htt_stats_mac_wdog(pevent, trace_seq, buf, tlv_length):
+
+    msg_base_len = 16
+
+    l = msg_base_len
+    hdr = struct.unpack("<HHHHHHHH", buf[0:l])
+    buf = buf[l:]
+
+    rxpcu = hdr[0]
+    txpcu = hdr[1]
+    ole = hdr[2]
+    rxdma = hdr[3]
+    hwsch = hdr[4]
+    crypto = hdr[5]
+    pdg = hdr[6]
+    txdma = hdr[7]
+
+    trace_seq.puts("\n\t\t\t MAC WDOG timeout\nrxpcu : %d txpcu : %d ole : %d rxdma : %d hwsch : %d crypto : %d pdg : %d txdma : %d" % (rxpcu, txpcu, ole, rxdma, hwsch, crypto, pdg, txdma))
+
 def parse_htt_stats_conf_msg(pevent, trace_seq, buf):
     # parse HTT_T2H_STATS_CONF_TLV
     l = 12
@@ -798,6 +856,12 @@ def parse_htt_stats_conf_msg(pevent, trace_seq, buf):
 	parse_htt_stats_tx_selfgen(pevent, trace_seq, buf, tlv_length)
     if tlv_type == HTT_DBG_STATS_TX_MU_INFO:
 	parse_htt_stats_tx_mu(pevent, trace_seq, buf, tlv_length)
+    if tlv_type == HTT_DBG_STATS_SIFS_RESP_INFO:
+	parse_htt_stats_sifs_resp(pevent, trace_seq, buf, tlv_length)
+    if tlv_type == HTT_DBG_STATS_RESET_INFO:
+	parse_htt_stats_reset(pevent, trace_seq, buf, tlv_length)
+    if tlv_type == HTT_DBG_STATS_MAC_WDOG_INFO:
+	parse_htt_stats_mac_wdog(pevent, trace_seq, buf, tlv_length)
 
 def ath10k_htt_stats_handler(pevent, trace_seq, event):
     buf_len = long(event['buf_len'])
