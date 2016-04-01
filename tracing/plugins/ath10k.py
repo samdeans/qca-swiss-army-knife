@@ -55,6 +55,11 @@ HTT_DBG_STATS_RX_RATE_INFO       = 2
 HTT_DBG_STATS_TX_PPDU_LOG        = 3
 HTT_DBG_STATS_TX_RATE_INFO       = 4
 HTT_DBG_STATS_TIDQ		 = 5
+HTT_DBG_STATS_TXBF_INFO		 = 6
+HTT_DBG_STATS_SND_INFO		 = 7
+HTT_DBG_STATS_ERROR_INFO	 = 8
+HTT_DBG_STATS_TX_SELFGEN_INFO	 = 9
+HTT_DBG_STATS_TX_MU_INFO	 = 10
 
 def hexdump(buf, prefix=None):
     s = binascii.b2a_hex(buf)
@@ -527,6 +532,230 @@ def parse_htt_stats_tidq(pevent, trace_seq, buf, tlv_length):
 
 		trace_seq.puts("\n\t\t TID%d : %d" % (i, tid_hw_qdepth))
 
+def parse_htt_stats_txbf_data_info(pevent, trace_seq, buf, tlv_length):
+    msg_base_len = 4
+
+    trace_seq.puts("\t\t TxBF Data Info\n\t\t VHT_TX_TxBF counts ")
+    for i in range(10):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf[l:]
+
+	tx_txbf_vht = hdr[0]
+
+	trace_seq.puts(" %d" % (tx_txbf_vht))
+
+    trace_seq.puts("\n\t\t VHT_RX_TxBF counts ")
+    for i in range(10):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf[l:]
+
+	rx_txbf_vht = hdr[0]
+
+	trace_seq.puts(" %d" % (rx_txbf_vht))
+
+    trace_seq.puts("\n\t\t HT_TX_TxBF counts ")
+    for i in range(8):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf[l:]
+
+	tx_txbf_ht = hdr[0]
+
+	trace_seq.puts(" %d" % (tx_txbf_ht))
+
+    trace_seq.puts("\n\t\t OFDM_TX_TxBF counts ")
+    for i in range(8):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf[l:]
+
+	tx_txbf_ofdm = hdr[0]
+
+	trace_seq.puts(" %d" % (tx_txbf_ofdm))
+
+    trace_seq.puts("\n\t\t ibf_VHT_TX_TxBF counts ")
+    for i in range(8):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf[l:]
+
+	tx_txbf_ofdm = hdr[0]
+
+	trace_seq.puts(" %d" % (tx_txbf_ofdm))
+
+    trace_seq.puts("\n\t\t ibf_HT_TX_TxBF counts ")
+    for i in range(8):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf[l:]
+
+	tx_txbf_ofdm = hdr[0]
+
+	trace_seq.puts(" %d" % (tx_txbf_ofdm))
+
+    trace_seq.puts("\n\t\t ibf_OFDM_TX_TxBF counts ")
+    for i in range(8):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf[l:]
+
+	tx_txbf_ofdm = hdr[0]
+
+	trace_seq.puts(" %d" % (tx_txbf_ofdm))
+
+def parse_htt_stats_txbf_send_info(pevent, trace_seq, buf, tlv_length):
+    msg_base_len = 4
+
+    trace_seq.puts("\t\t\tTx_BF SEND Info\n\t\t CBF_20 : ")
+    for i in range(4):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf[l:]
+
+	cbf_20 = hdr[0]
+
+	trace_seq.puts(" %d" % (cbf_20))
+
+    trace_seq.puts("\n\t\t BCF_40 : ")
+    for i in range(4):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf[l:]
+
+	cbf_40 = hdr[0]
+
+	trace_seq.puts(" %d" % (cbf_40))
+
+    trace_seq.puts("\n\t\t CBF_80 : ")
+    for i in range(4):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf[l:]
+
+	cbf_80 = hdr[0]
+
+	trace_seq.puts(" %d" % (cbf_80))
+
+    trace_seq.puts("\n\t\t CBF_160 :  ")
+    for i in range(4):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf[l:]
+
+	cbf_160 = hdr[0]
+
+	trace_seq.puts(" %d" % (cbf_160))
+
+    for i in range(3):
+	trace_seq.puts("\n\t\t Sounding_User_%d 20Mhz 40Mhz 80Mhz 160Mhz : " % (i))
+	for j in range(4):
+		l = msg_base_len
+		hdr = struct.unpack("<I", buf[0:l])
+		buf[l:]
+
+		sounding = hdr[0]
+
+		trace_seq.puts(" %d" % (sounding))
+
+def parse_htt_stats_tx_selfgen(pevent, trace_seq, buf, tlv_length):
+    msg_base_len = 68
+
+    l = msg_base_len
+    hdr = struct.unpack("<IIIIIIIIIIIIIIIII", buf[0:l])
+    buf[l:]
+
+    su_ndpa = hdr[0]
+    su_ndp = hdr[1]
+    mu_ndpa = hdr[2]
+    mu_ndp = hdr[3]
+    mu_brpoll_1 = hdr[4]
+    mu_brpoll_2 = hdr[5]
+    su_bar = hdr[6]
+    mu_bar_1 = hdr[7]
+    mu_bar_2 = hdr[8]
+    su_cts = hdr[9]
+    mu_cts = hdr[10]
+    su_ndpa_err = hdr[11]
+    mu_ndpa_err = hdr[12]
+    su_ndp_err = hdr[13]
+    mu_ndp_err = hdr[14]
+    mu_brp1_err = hdr[15]
+    mu_brp2_err = hdr[16]
+
+    trace_seq.puts("\t\t\t Tx_Selfgen_info\n\t\tsu_ndpa %d su_ndp %d mu_ndpa %d mu_ndp %d mu_brpoll_1 %d mu_brpoll_2 %d su_bar %d mu_bar_1 %d mu_bar_2 %d su_cts %d mu_cts %d su_ndpa_err %d mu_ndpa_err %d su_ndp_err %d mu_ndp_err %d mu_brp1_err %d mu_brp2_err %d" % (su_ndpa, su_ndp, mu_ndpa, mu_ndp, mu_brpoll_1, mu_brpoll_2, su_bar, mu_bar_1, mu_bar_2, su_cts, mu_cts, su_ndpa_err, mu_ndpa_err, su_ndp_err, mu_ndp_err, mu_brp1_err, mu_brp2_err))
+
+def parse_htt_stats_tx_mu(pevent, trace_seq, buf, tlv_length):
+    msg_base_len = 8
+
+    l = msg_base_len
+    hdr = struct.unpack("<II", buf[0:l])
+    buf = buf[l:]
+
+    mu_sch_nusers_2 = hdr[0]
+    mu_sch_nusers_3 = hdr[1]
+
+    trace_seq.puts("\t\t\tTx_MU_info\nmu_sch_nusers_2 : %dmu_sch_nusers_3 : %d " % (mu_sch_nusers_2, mu_sch_nusers_3))
+
+    msg_base_len = 4
+
+    for i in range(4):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+	mu_mpdus_queued_usr = hdr[0]
+
+	trace_seq.puts("mu_mpdus_queued_usr[%d] : %d " % (i, mu_mpdus_queued_usr))
+
+    for i in range(4):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+	mu_mpdus_tried_usr = hdr[0]
+
+	trace_seq.puts("mu_mpdus_tried_usr[%d] : %d " % (i, mu_mpdus_tried_usr))
+
+    for i in range(4):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+	mu_mpdus_failed_usr = hdr[0]
+
+	trace_seq.puts("mu_mpdus_failed_usr[%d] : %d " % (i, mu_mpdus_failed_usr))
+
+    for i in range(4):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+	mu_mpdus_requeued_usr = hdr[0]
+
+	trace_seq.puts("mu_mpdus_requeued_usr[%d] : %d " % (i, mu_mpdus_requeued_usr))
+
+    for i in range(4):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+	mu_err_no_ba_usr = hdr[0]
+
+	trace_seq.puts("mu_err_no_ba_usr[%d] : %d " % (i, mu_err_no_ba_usr))
+
+    for i in range(4):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+	mu_mpdu_underrun_usr = hdr[0]
+
+	trace_seq.puts("mu_mpdu_underrun_usr[%d] : %d " % (i, mu_mpdu_underrun_usr))
+
+    for i in range(4):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+	mu_ampdu_underrun_usr = hdr[0]
+
+	trace_seq.puts("mu_ampdu_underrun_usr[%d] : %d " % (i, mu_ampdu_underrun_usr))
+
 def parse_htt_stats_conf_msg(pevent, trace_seq, buf):
     # parse HTT_T2H_STATS_CONF_TLV
     l = 12
@@ -561,6 +790,14 @@ def parse_htt_stats_conf_msg(pevent, trace_seq, buf):
 	parse_htt_stats_tx_rate_info(pevent, trace_seq, buf, tlv_length)
     if tlv_type == HTT_DBG_STATS_TIDQ:
 	parse_htt_stats_tidq(pevent, trace_seq, buf, tlv_length)
+    if tlv_type == HTT_DBG_STATS_TXBF_INFO:
+	parse_htt_stats_txbf_data_info(pevent, trace_seq, buf, tlv_length)
+    if tlv_type == HTT_DBG_STATS_SND_INFO:
+	parse_htt_stats_txbf_send_info(pevent, trace_seq, buf, tlv_length)
+    if tlv_type == HTT_DBG_STATS_TX_SELFGEN_INFO:
+	parse_htt_stats_tx_selfgen(pevent, trace_seq, buf, tlv_length)
+    if tlv_type == HTT_DBG_STATS_TX_MU_INFO:
+	parse_htt_stats_tx_mu(pevent, trace_seq, buf, tlv_length)
 
 def ath10k_htt_stats_handler(pevent, trace_seq, event):
     buf_len = long(event['buf_len'])
