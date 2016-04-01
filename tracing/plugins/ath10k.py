@@ -54,6 +54,7 @@ HTT_DBG_STATS_RX_REORDER         = 1
 HTT_DBG_STATS_RX_RATE_INFO       = 2
 HTT_DBG_STATS_TX_PPDU_LOG        = 3
 HTT_DBG_STATS_TX_RATE_INFO       = 4
+HTT_DBG_STATS_TIDQ		 = 5
 
 def hexdump(buf, prefix=None):
     s = binascii.b2a_hex(buf)
@@ -156,6 +157,202 @@ def ath10k_log_dbg_dump_handler(pevent, trace_seq, event):
     trace_seq.puts("%s\n" % (msg))
     trace_seq.puts("%s\n" % hexdump(buf, prefix))
 
+def parse_htt_stats_wal_pdev_txrx(pevent, trace_seq, buf, tlv_length):
+    msg_base_len = 136
+
+    l = msg_base_len
+    hdr = struct.unpack("<IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII", buf[0:l])
+    buf = buf[l:]
+
+    comp_queued = hdr[0]
+    comp_delivered = hdr[1]
+    msdu_enqued = hdr[2]
+    mpdu_enqued = hdr[3]
+    wmm_drop = hdr[4]
+    local_enqued = hdr[5]
+    local_freed = hdr[6]
+    hw_queued = hdr[7]
+    hw_reaped = hdr[8]
+    underrun = hdr[9]
+    hw_paused = hdr[10]
+    tx_abort = hdr[11]
+    mpdus_requed = hdr[12]
+    tx_ko = hdr[13]
+    data_rc = hdr[14]
+    self_triggers = hdr[15]
+    sw_retry_failure = hdr[16]
+    illgl_rate_phy_err = hdr[17]
+    pdev_cont_xretry = hdr[18]
+    pdev_tx_timeout = hdr[19]
+    pdev_resets = hdr[20]
+    stateless_tid_alloc_failure = hdr[21]
+    phy_underrun = hdr[22]
+    txop_ovf = hdr[23]
+    seq_posted = hdr[24]
+    seq_failed_queueing = hdr[25]
+    seq_completed = hdr[26]
+    seq_restarted = hdr[27]
+    mu_seq_posted = hdr[28]
+    mpdus_sw_flush = hdr[29]
+    mpdus_hw_filter = hdr[30]
+    mpdus_truncated = hdr[31]
+    mpdus_ack_failed = hdr[32]
+    mpdus_expired = hdr[33]
+
+    trace_seq.puts("\t\t\t Tx Stats\nhtt_cookies_queued %d htt_cookies_dispatched %d MSDU_queued %d MPDU_queue %d MSDUs_dropped %d local_frames_queued %d local_frames_done %d queued_to_HW %d PPDU_reaped %d underruns %d Hw_paused %d PPDUs_cleaned %d MPDUs_requed %d excessive_retries %d data_hw_rate_code %d scheduler_self_triggers %d dropped_due_to_sw retries %d illegal_rate_phy_errors %d pdev_continuous_xretry %d pdev_tx_timeout %d pdev_resets %d stateless_tid_alloc_failure %d phy_underrun %d MPDU_txop_limit %d seq_posted %d seq_failed_queueing %d seq_completed %d seq_restarted %d mu_seq_posted %d mpdus_sw_flush %d mpdus_hw_filter %d mpdus_truncated %d mpdus_ack_failed %d mpdus_expired %d\n"\
+% (comp_queued, comp_delivered, msdu_enqued, mpdu_enqued, wmm_drop, local_enqued, local_freed, hw_queued, hw_reaped, underrun, hw_paused, tx_abort, mpdus_requed, tx_ko, data_rc, self_triggers, sw_retry_failure, illgl_rate_phy_err, pdev_cont_xretry, pdev_tx_timeout, pdev_resets, stateless_tid_alloc_failure, phy_underrun, txop_ovf, seq_posted, seq_failed_queueing, seq_completed, seq_restarted, mu_seq_posted, mpdus_sw_flush, mpdus_hw_filter, mpdus_truncated, mpdus_ack_failed, mpdus_expired))
+
+    msg_base_len = 60
+
+    l = msg_base_len
+    hdr = struct.unpack("<IIIIIIIIIIIIIII", buf[0:l])
+    buf = buf[l:]
+
+    mid_ppdu_route_change = hdr[0]
+    status_rcvd = hdr[1]
+    r0_frags = hdr[2]
+    r1_frags = hdr[3]
+    r2_frags = hdr[4]
+    r3_frags = hdr[5]
+    htt_msdus = hdr[6]
+    htt_mpdus = hdr[7]
+    loc_msdus = hdr[8]
+    loc_mpdus = hdr[9]
+    oversize_amsdu = hdr[10]
+    phy_errs = hdr[11]
+    phy_err_drop = hdr[12]
+    mpdu_errs = hdr[13]
+    rx_ovfl_errs = hdr[14]
+
+    trace_seq.puts("\t\t\t Rx Stats\nmid_ppdu_route_change %d status_rcvd %d r0_frags %d r1_frags %d r2_frags %d r3_frags %d htt_msdus %d htt_mpdus %d loc_msdus %d loc_mpdus %d oversize_amsdu %d phy_errs %d phy_err_drop %d mpdu_errs %d rx_ovfl_errs %d\n" % (mid_ppdu_route_change, status_rcvd, r0_frags, r1_frags, r2_frags, r3_frags, htt_msdus, htt_mpdus, loc_msdus, loc_mpdus, oversize_amsdu, phy_errs, phy_err_drop, mpdu_errs, rx_ovfl_errs))
+
+    msg_base_len = 12
+
+    l = msg_base_len
+    hdr = struct.unpack("<III", buf[0:l])
+    buf = buf[l:]
+
+    iram_free_size = hdr[0]
+    dram_free_size = hdr[1]
+    sram_free_size = hdr[2]
+
+    trace_seq.puts("\t\t\t Mem stats iram_free_size %d dram_free_size %d sram_free_size %d\n" % (iram_free_size, dram_free_size, sram_free_size))
+
+def parse_htt_stats_rx_reorder(pevent, trace_seq, buf, tlv_length):
+    msg_base_len = 56
+
+    l = msg_base_len
+    hdr = struct.unpack("<IIIIIIIIIIIIII", buf[0:l])
+    buf = buf[l:]
+
+    deliver_non_qos = hdr[0]
+    deliver_in_order = hdr[1]
+    deliver_flush_timeout = hdr[2]
+    deliver_flush_oow = hdr[3]
+    deliver_flush_delba = hdr[4]
+    fcs_error = hdr[5]
+    mgmt_ctrl = hdr[6]
+    invalid_peer = hdr[7]
+    dup_non_aggr = hdr[8]
+    dup_past = hdr[9]
+    dup_in_reorder = hdr[10]
+    reorder_timeout = hdr[11]
+    invalid_bar_ssn = hdr[12]
+    ssn_reset = hdr[13]
+
+    trace_seq.puts("\t\t\tRx Reorder Stats\ndeliver_non_qos %d deliver_in_order %d deliver_flush_timeout %d deliver_flush_oow %d deliver_flush_delba %d fcs_error %d mgmt_ctrl %d invalid_peer %d dup_non_aggr %d dup_past %d dup_in_reorder %d reorder_timeout %d invalid_bar_ssn %d ssn_reset %d\n" % (deliver_non_qos, deliver_in_order, deliver_flush_timeout, deliver_flush_oow, deliver_flush_delba, fcs_error, mgmt_ctrl, invalid_peer, dup_non_aggr, dup_past, dup_in_reorder, reorder_timeout, invalid_bar_ssn, ssn_reset))
+
+def parse_htt_stats_rx_rate_info(pevent, trace_seq, buf, tlv_length):
+    msg_base_len = 4
+
+    trace_seq.puts("\t\t\tRx Rate Info\n\t\t MCS_counts ")
+
+    for i in range(10):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+
+	mcs_count = hdr[0]
+
+	trace_seq.puts("%d " % (mcs_count))
+
+    trace_seq.puts("\n\t\t SGI_counts ")
+
+    for i in range(10):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+
+	sgi_count = hdr[0]
+
+	trace_seq.puts("%d " % (sgi_count))
+
+    trace_seq.puts("\n\t\t NSS_count ")
+
+    for i in range(4):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+
+	nss_count = hdr[0]
+
+	trace_seq.puts("%d " % (nss_count))
+
+    l = msg_base_len
+    hdr = struct.unpack("<I", buf[0:l])
+    buf = buf[l:]
+
+    nsts_count = hdr[0]
+
+    trace_seq.puts("\n\t\t NSTS_count %d \n\t\t STBC " % (nsts_count))
+
+    for i in range(10):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+
+	stbc = hdr[0]
+
+	trace_seq.puts("%d " % (stbc))
+
+    trace_seq.puts("\n\t\t BW_counts ")
+
+    for i in range(4):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+
+	bw_count = hdr[0]
+
+	trace_seq.puts("%d " % (bw_count))
+
+    trace_seq.puts("\n\t\t Preamble_count ")
+
+    for i in range(6):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+
+	pream_count = hdr[0]
+
+	trace_seq.puts("%d " % (pream_count))
+
+    msg_base_len = 28
+
+    l = msg_base_len
+    hdr = struct.unpack("<IIIIIII", buf[0:l])
+    buf = buf[l:]
+
+    ldpc_count = hdr[0]
+    txbf_count = hdr[1]
+    rssi_chain0 = hdr[2]
+    rssi_chain1 = hdr[3]
+    rssi_chain2 = hdr[4]
+    rssi_chain3 = hdr[5]
+    rssis = hdr[6]
+
+    trace_seq.puts("\n\t\t ldpc_count %d txbf_count %d rssi_chain0 0x%02x 0x%02x 0x%02x 0x%02x rssi_chain1 0x%02x 0x%02x 0x%02x 0x%02x rssi_chain2 0x%02x 0x%02x 0x%02x 0x%02x rssi_chain3 0x%02x 0x%02x 0x%02x 0x%02x mgmt_rssi %d data_rssi %d rssi_comb_ht %d" % (ldpc_count, txbf_count, (rssi_chain0 >> 24) & 0xff, (rssi_chain0 >> 16) & 0xff, (rssi_chain0 >> 8) & 0xff, (rssi_chain0 >> 0) & 0xff, (rssi_chain1 >> 24) & 0xff, (rssi_chain1 >> 16) & 0xff, (rssi_chain1 >> 8) & 0xff, (rssi_chain1 >> 0) & 0xff, (rssi_chain2 >> 24) & 0xff, (rssi_chain2 >> 16) & 0xff, (rssi_chain2 >> 8) & 0xff, (rssi_chain2 >> 0) & 0xff, (rssi_chain3 >> 24) & 0xff, (rssi_chain3 >> 16) & 0xff, (rssi_chain3 >> 8) & 0xff, (rssi_chain3 >> 0) & 0xff, (rssis >> 16 ) & 0xff, (rssis >> 0) & 0xff, (rssis >> 8) & 0xff))
+
 def parse_htt_stats_tx_ppdu_log(pevent, trace_seq, buf, tlv_length):
     msg_hdr_len = 8
     msg_base_len = 40
@@ -207,6 +404,129 @@ def parse_htt_stats_tx_ppdu_log(pevent, trace_seq, buf, tlv_length):
 
         trace_seq.puts("\t\t\t %d: start_seq_num %d start_pn_lsbs %d num_bytes %d num_msdus %d num_mpdus %d tid %d peer_id %d timestamp_enqueue %d timestamp_completion %d back %08x%08x enqueued %08x%08x rate_code 0x%x rate_flags 0x%x tries %d complete %d\n" % (i, start_seq_num, start_pn_lsbs, num_bytes, num_msdus, num_mpdus, tid, peer_id, timestamp_enqueue, timestamp_completion, block_ack_bitmap_msbs, block_ack_bitmap_lsbs, enqueued_bitmap_msbs, enqueued_bitmap_lsbs, rate_code, rate_flags, tries, complete))
 
+def parse_htt_stats_tx_rate_info(pevent, trace_seq, buf, tlv_length):
+    msg_base_len = 4
+
+    trace_seq.puts("\t\t\tTx Rate Info\n\t\t MCS_counts ")
+
+    for i in range(10):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+
+	mcs_count = hdr[0]
+
+	trace_seq.puts("%d " % (mcs_count))
+
+    trace_seq.puts("\n\t\t SGI_counts ")
+
+    for i in range(10):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+
+	sgi_count = hdr[0]
+
+	trace_seq.puts("%d " % (sgi_count))
+
+    trace_seq.puts("\n\t\t NSS_count ")
+
+    for i in range(4):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+
+	nss_count = hdr[0]
+
+	trace_seq.puts("%d " % (nss_count))
+
+    trace_seq.puts("\n\t\t STBC ")
+
+    for i in range(10):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+
+	stbc = hdr[0]
+
+	trace_seq.puts("%d " % (stbc))
+
+    trace_seq.puts("\n\t\t BW_counts ")
+
+    for i in range(3):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+
+	bw_count = hdr[0]
+
+	trace_seq.puts("%d " % (bw_count))
+
+    trace_seq.puts("\n\t\t Preamble_count ")
+
+    for i in range(4):
+	l = msg_base_len
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+
+	pream_count = hdr[0]
+
+	trace_seq.puts("%d " % (pream_count))
+
+    msg_base_len = 12
+
+    l = msg_base_len
+    hdr = struct.unpack("<III", buf[0:l])
+    buf = buf[l:]
+
+    ldpc_count = hdr[0]
+    rts_count = hdr[1]
+    ack_rssi = hdr[2]
+
+    trace_seq.puts("\n\t\t ldpc_count : %d rts_count : %d ack_rssi : %d" % (ldpc_count, rts_count, ack_rssi))
+
+def parse_htt_stats_tidq(pevent, trace_seq, buf, tlv_length):
+    msg_base_len = 4
+
+    l = msg_base_len
+    hdr = struct.unpack("<I", buf[0:l])
+    buf = buf[l:]
+
+    wlan_dbg_tid_txq_status = hdr[0]
+
+    if wlan_dbg_tid_txq_status == 1:
+	trace_seq.puts("n\t Could not read TIDQ stats from firmware")
+    else:
+	trace_seq.puts("\n\t Frames queued to h/w Queue\n\t\t")
+	for i in range(10):
+		l = msg_base_len
+		hdr = struct.unpack("<I", buf[0:l])
+		buf[l:]
+
+		num_pkts_queued = hdr[0]
+
+		trace_seq.puts(" Q%d : %d" % (i, num_pkts_queued))
+
+	trace_seq.puts("\n\t\t\t S/W Queue stats")
+	for i in range(20):
+		l = msg_base_len
+		hdr = struct.unpack("<I", buf[0:l])
+		buf[l:]
+
+		tid_sw_qdepth = hdr[0]
+
+		trace_seq.puts("\n\t\t TID%d : %d" % (i, tid_sw_qdepth))
+
+	trace_seq.puts("\n\t\t\t H/W Queue stats")
+	for i in range(20):
+		l = msg_base_len
+		hdr = struct.unpack("<I", buf[0:l])
+		buf[l:]
+
+		tid_hw_qdepth = hdr[0]
+
+		trace_seq.puts("\n\t\t TID%d : %d" % (i, tid_hw_qdepth))
+
 def parse_htt_stats_conf_msg(pevent, trace_seq, buf):
     # parse HTT_T2H_STATS_CONF_TLV
     l = 12
@@ -229,8 +549,18 @@ def parse_htt_stats_conf_msg(pevent, trace_seq, buf):
     trace_seq.puts("\t\tcookie 0x%016x tlv_type %d tlv_status %d tlv_length %d\n"
                    % (cookie, tlv_type, tlv_status, tlv_length))
 
+    if tlv_type == HTT_DBG_STATS_WAL_PDEV_TXRX:
+	parse_htt_stats_wal_pdev_txrx(pevent, trace_seq, buf, tlv_length)
+    if tlv_type == HTT_DBG_STATS_RX_REORDER:
+	parse_htt_stats_rx_reorder(pevent, trace_seq, buf, tlv_length)
+    if tlv_type == HTT_DBG_STATS_RX_RATE_INFO:
+	parse_htt_stats_rx_rate_info(pevent, trace_seq, buf, tlv_length)
     if tlv_type == HTT_DBG_STATS_TX_PPDU_LOG:
         parse_htt_stats_tx_ppdu_log(pevent, trace_seq, buf, tlv_length)
+    if tlv_type == HTT_DBG_STATS_TX_RATE_INFO:
+	parse_htt_stats_tx_rate_info(pevent, trace_seq, buf, tlv_length)
+    if tlv_type == HTT_DBG_STATS_TIDQ:
+	parse_htt_stats_tidq(pevent, trace_seq, buf, tlv_length)
 
 def ath10k_htt_stats_handler(pevent, trace_seq, event):
     buf_len = long(event['buf_len'])
