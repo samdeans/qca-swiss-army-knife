@@ -63,6 +63,9 @@ HTT_DBG_STATS_TX_MU_INFO	 = 10
 HTT_DBG_STATS_SIFS_RESP_INFO	 = 11
 HTT_DBG_STATS_RESET_INFO	 = 12
 HTT_DBG_STATS_MAC_WDOG_INFO	 = 13
+HTT_DBG_STATS_TX_DESC_INFO	 = 14
+HTT_DBG_STATS_TX_FETCH_MGR_INFO	 = 15
+HTT_DBG_STATS_TX_PFSCHED_INFO	 = 16
 
 def hexdump(buf, prefix=None):
     s = binascii.b2a_hex(buf)
@@ -814,6 +817,100 @@ def parse_htt_stats_mac_wdog(pevent, trace_seq, buf, tlv_length):
 
     trace_seq.puts("\n\t\t\t MAC WDOG timeout\nrxpcu : %d txpcu : %d ole : %d rxdma : %d hwsch : %d crypto : %d pdg : %d txdma : %d" % (rxpcu, txpcu, ole, rxdma, hwsch, crypto, pdg, txdma))
 
+def parse_htt_stats_tx_desc(pevent, trace_seq, buf, tlv_length):
+    msg_base_len = 4
+
+    l = msg_base_len
+    hdr = struct.unpack("<I", buf[0:l])
+    buf = buf[l:]
+
+    word1 = hdr[0]
+
+    trace_seq.puts("\n\t\t\t FW desc monitor stats\nTotal_FW_Desc_count:%d Current_desc_available:%d" % ((((word1) & 0xFFFF) >> 0), (((word1) & 0xFFFF0000) >> 16)))
+
+    for i in range(9):
+	msg_base_len = 24
+
+	l = msg_base_len
+	hdr = struct.unpack("<IIIIII", buf[0:l])
+	buf = buf[l:]
+
+	cfg_min_bin_idx = hdr[0]
+	cfg_prio_cfg_max = hdr[1]
+	curr_total_cfg_bin_hist_th = hdr[2]
+	bin_max_pre_alloc_cnt = hdr[3]
+	bin_hist_low = hdr[4]
+	bin_hist_high = hdr[5]
+
+	trace_seq.puts("\n\t\tBIN id: %d Min desc: %d Max desc: %d Priority: %d Hysteresis threshold: %d Desc consumed: %d Pre-alloc count: %d Max Desc consumed: %d Low threshold count: %d High threshold count: %d" % (((cfg_min_bin_idx >> 0 ) & 0xFF), ((cfg_min_bin_idx >> 16) & 0xFFFF), ((cfg_prio_cfg_max >> 0) & 0xFFFF), ((cfg_prio_cfg_max >> 16) & 0xFF), ((curr_total_cfg_bin_hist_th >> 0) & 0xFFFF), ((curr_total_cfg_bin_hist_th >> 16) & 0xFFFF), ((bin_max_pre_alloc_cnt >> 0) & 0xFFFF), ((bin_max_pre_alloc_cnt >> 16) & 0xFFFF), bin_hist_low, bin_hist_high))
+
+def parse_htt_stats_tx_fetch_mgr(pevent, trace_seq, buf, tlv_length):
+    msg_base_len = 4
+
+    l = msg_base_len
+    trace_seq.puts("\t\t\t Fetch Manager Stats\n")
+    for i in range(4):
+	hdr = struct.unpack("<I", buf[0:l])
+	buf = buf[l:]
+
+	fetch_desc_fetch_dur = hdr[0]
+
+	trace_seq.puts("Outstanding_Fetch_Duration : %d Outstanding_Fetch_Desc : %d\n" % ((((fetch_desc_fetch_dur) & 0xFFFF) >> 0), (((fetch_desc_fetch_dur) & 0xFFFF0000) >> 16)))
+
+    hdr = struct.unpack("<I", buf[0:l])
+    buf = buf[l:]
+
+    fetch_mgr_total_outstanding_fetch_desc = hdr[0]
+    trace_seq.puts("Total Outstanding Fetch desc : %d\n\t\t Fetch Hist 400 msec bin" % (fetch_mgr_total_outstanding_fetch_desc))
+
+    msg_base_len = 64
+    l = msg_base_len
+
+    hdr = struct.unpack("<IIIIIIIIIIIIIIII", buf[0:l])
+
+    fetch_mgr_rtt_histogram_4ms_0 = hdr[0]
+    fetch_mgr_rtt_histogram_4ms_1 = hdr[1]
+    fetch_mgr_rtt_histogram_4ms_2 = hdr[2]
+    fetch_mgr_rtt_histogram_4ms_3 = hdr[3]
+    fetch_mgr_rtt_histogram_4ms_4 = hdr[4]
+    fetch_mgr_rtt_histogram_4ms_5 = hdr[5]
+    fetch_mgr_rtt_histogram_4ms_6 = hdr[6]
+    fetch_mgr_rtt_histogram_4ms_7 = hdr[7]
+    fetch_mgr_rtt_histogram_500us_0 = hdr[8]
+    fetch_mgr_rtt_histogram_500us_1 = hdr[9]
+    fetch_mgr_rtt_histogram_500us_2 = hdr[10]
+    fetch_mgr_rtt_histogram_500us_3 = hdr[11]
+    fetch_mgr_rtt_histogram_500us_4 = hdr[12]
+    fetch_mgr_rtt_histogram_500us_5 = hdr[13]
+    fetch_mgr_rtt_histogram_500us_6 = hdr[14]
+    fetch_mgr_rtt_histogram_500us_7 = hdr[15]
+
+    trace_seq.puts("\n0 MSEC - 4 MSEC:%d 4 MSEC - 8 MSEC:%d 8 MSEC - 12 MSEC:%d 12 MSEC - 16 MSEC:%d 16 MSEC - 20 MSEC:%d 20 MSEC - 24 MSEC:%d 24 MSEC - 28 MSEC:%d 28 MSEC - 32 MSEC:%d\n\t\tFetch Hist 500 usec bin\n0 USEC - 500 USEC:%d 500 USEC - 1000 USEC:%d 1000 USEC - 1500 USEC:%d 1500 USEC - 2000 USEC:%d 2000 USEC - 2500 USEC:%d 2500 USEC - 3000 USEC:%d 3000 USEC - 3500 USEC:%d 3500 USEC - 4000 USEC:%d" % (fetch_mgr_rtt_histogram_4ms_0, fetch_mgr_rtt_histogram_4ms_1, fetch_mgr_rtt_histogram_4ms_2, fetch_mgr_rtt_histogram_4ms_3, fetch_mgr_rtt_histogram_4ms_4, fetch_mgr_rtt_histogram_4ms_5, fetch_mgr_rtt_histogram_4ms_6, fetch_mgr_rtt_histogram_4ms_7, fetch_mgr_rtt_histogram_500us_0, fetch_mgr_rtt_histogram_500us_1, fetch_mgr_rtt_histogram_500us_2, fetch_mgr_rtt_histogram_500us_3, fetch_mgr_rtt_histogram_500us_4, fetch_mgr_rtt_histogram_500us_5, fetch_mgr_rtt_histogram_500us_6, fetch_mgr_rtt_histogram_500us_7))
+
+def parse_htt_stats_tx_pf_sched(pevent, trace_seq, buf, tlv_length):
+    msg_base_len = 48
+    l = msg_base_len
+
+    trace_seq.puts("\n\t\t\tPre-Fetch Manager Stats")
+
+    for i in range(4):
+	hdr = struct.unpack("<IIIIIIIIIIII", buf[0:l])
+
+	tx_queued = hdr[0]
+	tx_reaped = hdr[1]
+	tx_sched = hdr[2]
+	abort_sched = hdr[3]
+	sched_timeout = hdr[4]
+	tx_sched_waitq = hdr[5]
+	fetch_resp = hdr[6]
+	fetch_resp_invld = hdr[7]
+	fetch_resp_delayed = hdr[8]
+	fetch_request = hdr[9]
+	tx_requeued = hdr[10]
+	sched_fail = hdr[11]
+
+	trace_seq.puts("\n\t\t AC[%d]\ntx_queued:%d tx_reaped:%d tx_sched:%d abort_sched:%d sched_timeout:%d tx_sched_waitq:%d fetch_resp:%d fetch_resp_invld:%d fetch_resp_delayed:%d fetch_request:%d tx_requeued:%d sched_fail:%d" % (i, tx_queued, tx_reaped, tx_sched, abort_sched, sched_timeout, tx_sched_waitq, fetch_resp, fetch_resp_invld, fetch_resp_delayed, fetch_request, tx_requeued, sched_fail))
+
 def parse_htt_stats_conf_msg(pevent, trace_seq, buf):
     # parse HTT_T2H_STATS_CONF_TLV
     l = 12
@@ -862,6 +959,12 @@ def parse_htt_stats_conf_msg(pevent, trace_seq, buf):
 	parse_htt_stats_reset(pevent, trace_seq, buf, tlv_length)
     if tlv_type == HTT_DBG_STATS_MAC_WDOG_INFO:
 	parse_htt_stats_mac_wdog(pevent, trace_seq, buf, tlv_length)
+    if tlv_type == HTT_DBG_STATS_TX_DESC_INFO:
+	parse_htt_stats_tx_desc(pevent, trace_seq, buf, tlv_length)
+    if tlv_type == HTT_DBG_STATS_TX_FETCH_MGR_INFO:
+	parse_htt_stats_tx_fetch_mgr(pevent, trace_seq, buf, tlv_length)
+    if tlv_type == HTT_DBG_STATS_TX_PFSCHED_INFO:
+	parse_htt_stats_tx_pf_sched(pevent, trace_seq, buf, tlv_length)
 
 def ath10k_htt_stats_handler(pevent, trace_seq, event):
     buf_len = long(event['buf_len'])
