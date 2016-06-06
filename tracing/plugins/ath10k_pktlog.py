@@ -237,7 +237,7 @@ def pktlog_tx_ctrl(buf, hw_type):
 	hdr = Ath10kPktlogHdr()
 	hdr.unpack(buf)
 	hdr.size = ATH10K_PKTLOG_TXCTL_LEN
-    elif hw_type == ATH10K_PKTLOG_HW_QCA99X0:
+    elif hw_type == ATH10K_PKTLOG_HW_QCA99X0 or ATH10K_PKTLOG_HW_QCA40XX:
 	hdr = Ath10kPktlog_10_4_Hdr()
 	hdr.unpack(buf)
 	# There are times when the length of txctrl payload is less than
@@ -278,7 +278,7 @@ def pktlog_tx_msdu_id(buf, hw_type):
 	output_write(msdu_info)
 
 	max_pkt_info_msdu_id = MAX_PKT_INFO_MSDU_ID
-    elif hw_type == ATH10K_PKTLOG_HW_QCA99X0:
+    elif hw_type == ATH10K_PKTLOG_HW_QCA99X0 or ATH10K_PKTLOG_HW_QCA40XX:
 	hdr = Ath10kPktlog_10_4_Hdr()
 	hdr.unpack(buf)
 
@@ -315,7 +315,7 @@ def ath10k_htt_pktlog_handler(pevent, trace_seq, event):
 
     if hw_type == ATH10K_PKTLOG_HW_QCA988X:
 	hdr = Ath10kPktlogHdr()
-    elif hw_type == ATH10K_PKTLOG_HW_QCA99X0:
+    elif hw_type == ATH10K_PKTLOG_HW_QCA99X0 or ATH10K_PKTLOG_HW_QCA40XX:
 	hdr = Ath10kPktlog_10_4_Hdr()
 
     hdr.unpack(buf, offset)
@@ -357,7 +357,7 @@ def ath10k_htt_rx_desc_handler(pevent, trace_seq, event):
 	output_write(rxdesc[76 : 208])
 	output_write(rxdesc[228 : ])
 
-    elif hw_type == ATH10K_PKTLOG_HW_QCA99X0:
+    elif hw_type == ATH10K_PKTLOG_HW_QCA99X0 or ATH10K_PKTLOG_HW_QCA40XX:
 	hdr = Ath10kPktlog_10_4_Hdr()
 	hdr.flags = (1 << ATH10K_PKTLOG_FLG_TYPE_REMOTE_S)
 	hdr.missed_cnt = 0
