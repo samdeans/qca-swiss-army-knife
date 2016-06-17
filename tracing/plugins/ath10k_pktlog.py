@@ -114,7 +114,7 @@ class Ath10kPktlogHdr:
          self.size, self.timestamp) = struct.unpack_from(self.struct_fmt, buf, 0)
 
         payload_len = len(buf) - self.hdr_len
-        if payload_len != self.size:
+        if payload_len < self.size:
             raise Exception('Payload length invalid: %d != %d' %
                             (payload_len, self.size))
 
@@ -304,7 +304,8 @@ def pktlog_tx_msdu_id(buf, hw_type):
 	max_pkt_info_msdu_id = MAX_10_4_PKT_INFO_MSDU_ID
 
     for i in range(max_pkt_info_msdu_id):
-        if len(id) >= 2:
+        if num_msdu > 0:
+	    num_msdu = num_msdu - 1;
             msdu_id, = struct.unpack_from('<H', id);
             id = id[2:]
             if msdu_id not in msdu_len_tbl:
