@@ -60,8 +60,10 @@ ATH10K_PKTLOG_FLG_TYPE_UNKNOWN_S = 3
 
 # sizeof(ath10k_pktlog_txctl) = 12 + 4 * 57
 ATH10K_PKTLOG_TXCTL_LEN = 240
+ATH10K_PKTLOG_MAX_TXCTL_WORDS = 57
 # sizeof(ath10k_pktlog_10_4_txctl)2 = 16 + 4 * 153
-ATH10K_PKTLOG_10_4_TXCTL_LEN = 628
+ATH10K_PKTLOG_10_4_TXCTL_LEN = 624
+ATH10K_PKTLOG_10_4_MAX_TXCTL_WORDS = 153
 
 msdu_len_tbl = {}
 output_file = None
@@ -239,15 +241,13 @@ def pktlog_tx_ctrl(buf, hw_type):
 	hdr = Ath10kPktlogHdr()
 	hdr.unpack(buf)
 	hdr.size = ATH10K_PKTLOG_TXCTL_LEN
+        num_txctls = ATH10K_PKTLOG_MAX_TXCTL_WORDS
     elif hw_type == ATH10K_PKTLOG_HW_QCA99X0 or \
             hw_type == ATH10K_PKTLOG_HW_QCA40XX:
 	hdr = Ath10kPktlog_10_4_Hdr()
 	hdr.unpack(buf)
-	# There are times when the length of txctrl payload is less than
-	# ATH10K_PKTLOG_10_4_TXCTL_LEN. To avoid that, always get the payload
-	# length from pktlog header passed
-	hdr.size = hdr.size + hdr.hdr_len
-	#hdr.size = ATH10K_PKTLOG_10_4_TXCTL_LEN
+	hdr.size = ATH10K_PKTLOG_10_4_TXCTL_LEN
+        num_txctls = ATH10K_PKTLOG_10_4_MAX_TXCTL_WORDS
 
     output_write(hdr.pack())
     
@@ -258,9 +258,14 @@ def pktlog_tx_ctrl(buf, hw_type):
         tmp = struct.pack('HHHHHH', 0, 0, 0, 0, 0, 0)
         output_write(tmp)
 
-    # write unsigned int txdesc_ctl[PKTLOG_MAX_TXCTL_WORDS]
-    # FIXME: check that length is correct
-    output_write(buf[12:])
+    txdesc_ctl = hdr.payload[0:]
+    for i in range(num_txctls):
+        if len(txdesc_ctl) >= 4:
+            txctl, = struct.unpack_from('<I', txdesc_ctl)
+            txdesc_ctl = txdesc_ctl[4:]
+        else:
+            txctl = 0
+        output_write(struct.pack('I', txctl))
 
 def pktlog_tx_msdu_id(buf, hw_type):
     global msdu_len_tbl
