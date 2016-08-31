@@ -21,6 +21,8 @@ import sys
 import argparse
 import re
 import tempfile
+import Queue
+import threading
 
 DRIVER_DIR = 'drivers/net/wireless/ath/ath10k/'
 
@@ -58,6 +60,7 @@ logger = logging.getLogger('ath10k-check')
 
 # use instead nproc(1)
 cores = '8'
+threads = int(cores) + 2
 
 class CPWarning():
     def __str__(self):
@@ -146,6 +149,39 @@ def is_filtered(cpwarning):
 
     return False
 
+def run_checkpatch_cmd(q, tag_map):
+    checkpatch_cmd = ['checkpatch.pl']
+    checkpatch_cmd += CHECKPATCH_OPTS
+    checkpatch_cmd += ['--ignore', ",".join(CHECKPATCH_IGNORE), '-f']
+
+    while True:
+        try:
+            f = q.get_nowait()
+        except Queue.Empty:
+            # no more files to check
+            break
+
+        cmd = checkpatch_cmd + [f]
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        (stdoutdata, stderrdata) = p.communicate()
+
+        if stdoutdata == None:
+            continue
+
+        lines = stdoutdata.splitlines()
+        for line in lines:
+            w = parse_checkpatch_warning(line)
+            w.tag = find_tagname(tag_map, f, w.lineno)
+
+            if is_filtered(w):
+                logger.debug('FILTERED: %s' % w)
+                continue
+
+            logger.debug(w)
+            print '%s:%s: %s' % (w.path, w.lineno, w.msg)
+
+        q.task_done()
+
 def run_checkpatch():
     # get all files which need to be checked
     cmd = 'git ls-tree HEAD %s | cut -f 2' % (DRIVER_DIR)
@@ -192,30 +228,18 @@ def run_checkpatch():
 
             tag_map[f].append((line, tagname))
 
-    checkpatch_cmd = ['checkpatch.pl']
-    checkpatch_cmd += CHECKPATCH_OPTS
-    checkpatch_cmd += ['--ignore', ",".join(CHECKPATCH_IGNORE), '-f']
+    q = Queue.Queue()
+
+    for f in driver_files:
+        q.put(f)
 
     # run checkpatch for all files
-    for f in driver_files:
-        cmd = checkpatch_cmd + [f]
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        (stdoutdata, stderrdata) = p.communicate()
+    for i in range(threads):
+        t = threading.Thread(target=run_checkpatch_cmd, args = (q,tag_map))
+        t.daemon = True
+        t.start()
 
-        if stdoutdata == None:
-            continue
-
-        lines = stdoutdata.splitlines()
-        for line in lines:
-            w = parse_checkpatch_warning(line)
-            w.tag = find_tagname(tag_map, f, w.lineno)
-
-            if is_filtered(w):
-                logger.debug('FILTERED: %s' % w)
-                continue
-
-            logger.debug(w)
-            print '%s:%s: %s' % (w.path, w.lineno, w.msg)
+    q.join()
 
     return 0
 
