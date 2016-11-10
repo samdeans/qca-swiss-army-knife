@@ -512,7 +512,7 @@ def parse_htt_stats_tidq(pevent, trace_seq, buf, tlv_length):
 	for i in range(10):
 		l = msg_base_len
 		hdr = struct.unpack("<I", buf[0:l])
-		buf[l:]
+		buf = buf[l:]
 
 		num_pkts_queued = hdr[0]
 
@@ -522,7 +522,7 @@ def parse_htt_stats_tidq(pevent, trace_seq, buf, tlv_length):
 	for i in range(20):
 		l = msg_base_len
 		hdr = struct.unpack("<I", buf[0:l])
-		buf[l:]
+		buf = buf[l:]
 
 		tid_sw_qdepth = hdr[0]
 
@@ -532,7 +532,7 @@ def parse_htt_stats_tidq(pevent, trace_seq, buf, tlv_length):
 	for i in range(20):
 		l = msg_base_len
 		hdr = struct.unpack("<I", buf[0:l])
-		buf[l:]
+		buf = buf[l:]
 
 		tid_hw_qdepth = hdr[0]
 
@@ -545,7 +545,7 @@ def parse_htt_stats_txbf_data_info(pevent, trace_seq, buf, tlv_length):
     for i in range(10):
 	l = msg_base_len
 	hdr = struct.unpack("<I", buf[0:l])
-	buf[l:]
+	buf = buf[l:]
 
 	tx_txbf_vht = hdr[0]
 
@@ -555,7 +555,7 @@ def parse_htt_stats_txbf_data_info(pevent, trace_seq, buf, tlv_length):
     for i in range(10):
 	l = msg_base_len
 	hdr = struct.unpack("<I", buf[0:l])
-	buf[l:]
+	buf = buf[l:]
 
 	rx_txbf_vht = hdr[0]
 
@@ -565,7 +565,7 @@ def parse_htt_stats_txbf_data_info(pevent, trace_seq, buf, tlv_length):
     for i in range(8):
 	l = msg_base_len
 	hdr = struct.unpack("<I", buf[0:l])
-	buf[l:]
+	buf = buf[l:]
 
 	tx_txbf_ht = hdr[0]
 
@@ -575,17 +575,17 @@ def parse_htt_stats_txbf_data_info(pevent, trace_seq, buf, tlv_length):
     for i in range(8):
 	l = msg_base_len
 	hdr = struct.unpack("<I", buf[0:l])
-	buf[l:]
+	buf = buf[l:]
 
 	tx_txbf_ofdm = hdr[0]
 
 	trace_seq.puts(" %d" % (tx_txbf_ofdm))
 
     trace_seq.puts("\n\t\t ibf_VHT_TX_TxBF counts ")
-    for i in range(8):
+    for i in range(10):
 	l = msg_base_len
 	hdr = struct.unpack("<I", buf[0:l])
-	buf[l:]
+	buf = buf[l:]
 
 	tx_txbf_ofdm = hdr[0]
 
@@ -595,7 +595,7 @@ def parse_htt_stats_txbf_data_info(pevent, trace_seq, buf, tlv_length):
     for i in range(8):
 	l = msg_base_len
 	hdr = struct.unpack("<I", buf[0:l])
-	buf[l:]
+	buf = buf[l:]
 
 	tx_txbf_ofdm = hdr[0]
 
@@ -605,7 +605,7 @@ def parse_htt_stats_txbf_data_info(pevent, trace_seq, buf, tlv_length):
     for i in range(8):
 	l = msg_base_len
 	hdr = struct.unpack("<I", buf[0:l])
-	buf[l:]
+	buf = buf[l:]
 
 	tx_txbf_ofdm = hdr[0]
 
@@ -618,7 +618,7 @@ def parse_htt_stats_txbf_send_info(pevent, trace_seq, buf, tlv_length):
     for i in range(4):
 	l = msg_base_len
 	hdr = struct.unpack("<I", buf[0:l])
-	buf[l:]
+	buf = buf[l:]
 
 	cbf_20 = hdr[0]
 
@@ -628,7 +628,7 @@ def parse_htt_stats_txbf_send_info(pevent, trace_seq, buf, tlv_length):
     for i in range(4):
 	l = msg_base_len
 	hdr = struct.unpack("<I", buf[0:l])
-	buf[l:]
+	buf = buf[l:]
 
 	cbf_40 = hdr[0]
 
@@ -638,7 +638,7 @@ def parse_htt_stats_txbf_send_info(pevent, trace_seq, buf, tlv_length):
     for i in range(4):
 	l = msg_base_len
 	hdr = struct.unpack("<I", buf[0:l])
-	buf[l:]
+	buf = buf[l:]
 
 	cbf_80 = hdr[0]
 
@@ -648,7 +648,7 @@ def parse_htt_stats_txbf_send_info(pevent, trace_seq, buf, tlv_length):
     for i in range(4):
 	l = msg_base_len
 	hdr = struct.unpack("<I", buf[0:l])
-	buf[l:]
+	buf = buf[l:]
 
 	cbf_160 = hdr[0]
 
@@ -659,7 +659,7 @@ def parse_htt_stats_txbf_send_info(pevent, trace_seq, buf, tlv_length):
 	for j in range(4):
 		l = msg_base_len
 		hdr = struct.unpack("<I", buf[0:l])
-		buf[l:]
+		buf = buf[l:]
 
 		sounding = hdr[0]
 
@@ -670,7 +670,7 @@ def parse_htt_stats_tx_selfgen(pevent, trace_seq, buf, tlv_length):
 
     l = msg_base_len
     hdr = struct.unpack("<IIIIIIIIIIIIIIIII", buf[0:l])
-    buf[l:]
+    buf = buf[l:]
 
     su_ndpa = hdr[0]
     su_ndp = hdr[1]
@@ -895,6 +895,7 @@ def parse_htt_stats_tx_pf_sched(pevent, trace_seq, buf, tlv_length):
 
     for i in range(4):
 	hdr = struct.unpack("<IIIIIIIIIIII", buf[0:l])
+	buf = buf[l:]
 
 	tx_queued = hdr[0]
 	tx_reaped = hdr[1]
