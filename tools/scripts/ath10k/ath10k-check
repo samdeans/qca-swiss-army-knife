@@ -336,7 +336,7 @@ $CHECKPATCH_URL
         checkpatch = True
 
     try:
-        cores = subprocess.check_output(['nproc2'])
+        cores = subprocess.check_output(['nproc'])
     except OSError, subprocess.CalledProcessError:
         cores = '4'
         logger.warning('Failed to run nproc, assuming %s cores' % (cores))
