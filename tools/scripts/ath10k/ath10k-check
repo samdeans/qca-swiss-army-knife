@@ -34,6 +34,8 @@ GIT_URL = 'https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain
 
 DRIVER_DIR = 'drivers/net/wireless/ath/ath10k/'
 
+FILTER_REGEXP = r'/ath'
+
 IGNORE_FILES = [ 'trace.h' ]
 
 CHECKPATCH_IGNORE = [ 'MSLEEP',
@@ -99,7 +101,7 @@ class CPWarning():
         self.msg = ''
         self.tag = ''
 
-def run_gcc():
+def run_gcc(args):
     # to disable utf-8 from gcc, easier to paste that way
     os.environ['LC_CTYPE'] = 'C'
 
@@ -115,11 +117,16 @@ def run_gcc():
     stderr = stderr.strip()
 
     if len(stderr) > 0:
-        print stderr
+        for line in stderr.splitlines():
+            match = re.search(FILTER_REGEXP, line)
+            if not args.no_filter and not match:
+                continue
+
+            print line.strip()
 
     return p.returncode
 
-def run_sparse():
+def run_sparse(args):
     cmd = ['make', '-k', '-j', str(threads), DRIVER_DIR, 'C=2', 'CF="-D__CHECK_ENDIAN__"']
     logger.debug('%s' % cmd)
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -128,7 +135,12 @@ def run_sparse():
     stderr = stderr.strip()
 
     if len(stderr) > 0:
-        print stderr
+        for line in stderr.splitlines():
+            match = re.search(FILTER_REGEXP, line)
+            if not args.no_filter and not match:
+                continue
+
+            print line.strip()
 
     return p.returncode
 
@@ -206,7 +218,7 @@ def run_checkpatch_cmd(q, tag_map):
 
         q.task_done()
 
-def run_checkpatch():
+def run_checkpatch(args):
     # get all files which need to be checked
     cmd = 'git ls-tree HEAD %s | cut -f 2' % (DRIVER_DIR)
     output = subprocess.check_output(cmd, shell=True)
@@ -314,6 +326,9 @@ $CHECKPATCH_URL
     parser.add_argument('--fast', action='store_true',
                         help='run only tests which finish in few seconds')
 
+    parser.add_argument('--no-filter', action='store_true',
+                        help='Don\'t filter output with regexp: %r' % (FILTER_REGEXP))
+
     args = parser.parse_args()
 
     timefmt = ''
@@ -346,19 +361,19 @@ $CHECKPATCH_URL
     logger.debug('threads %d' % (threads))
 
     if gcc:
-        ret = run_gcc()
+        ret = run_gcc(args)
         if ret != 0:
             logger.debug('gcc failed: %d', ret)
             sys.exit(1)
 
     if sparse:
-        ret = run_sparse()
+        ret = run_sparse(args)
         if ret != 0:
             logger.debug('sparse failed: %d', ret)
             sys.exit(2)
 
     if checkpatch:
-        ret = run_checkpatch()
+        ret = run_checkpatch(args)
         if ret != 0:
             logger.debug('checkpatch failed: %d', ret)
             sys.exit(3)
