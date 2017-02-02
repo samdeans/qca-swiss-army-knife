@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright (c) 2015 Qualcomm Atheros, Inc.
+# Copyright (c) 2015-2017 Qualcomm Atheros, Inc.
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -13,6 +13,9 @@
 # WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+#
+# Run 'ath10k-check --help' to see the instructions
+#
 
 import subprocess
 import os
@@ -23,6 +26,11 @@ import re
 import tempfile
 import Queue
 import threading
+import string
+
+CHECKPATCH_COMMIT = '46d832f5e2102cce455672c5a0b8cbe97e27fe42'
+
+GIT_URL = 'https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/scripts/checkpatch.pl?id=%s'
 
 DRIVER_DIR = 'drivers/net/wireless/ath/ath10k/'
 
@@ -40,7 +48,22 @@ CHECKPATCH_IGNORE = [ 'MSLEEP',
                       'COMPARISON_TO_NULL',
                       'BIT_MACRO',
                       'CONSTANT_COMPARISON',
-                      'MACRO_WITH_FLOW_CONTROL'
+                      'MACRO_WITH_FLOW_CONTROL',
+                      
+                      # Spams hundreds of lines useless 'struct should
+                      # normally be const' warnings, maybe a bug in
+                      # checkpatch?
+                      'CONST_STRUCT',
+
+                      # TODO: look like valid warnings, investigate
+                      'MACRO_ARG_REUSE',
+
+                      # Not sure if these really useful warnings,
+                      # disable for now.
+                      'MACRO_ARG_PRECEDENCE',
+
+                      # TODO: should fix these warnings, pretty easy
+                      'SYMBOLIC_PERMS'
 ]
 
 CHECKPATCH_OPTS = [ '--strict', '-q', '--terse', '--no-summary',
@@ -52,15 +75,16 @@ checkpatch_filter = [
     ('wmi_tlv_policy', 'SPACING'),
     ('ath10k_core_register_work', 'RETURN_VOID'),
     ('ATH10K_HW_RATE_CCK_.*', 'LONG_LINE'),
+
+    # checkpatch doesn't like uninitialized_var()
+    ('ath10k_init_hw_params', 'FUNCTION_ARGUMENTS'),
 ]
 
 # global variables
 
 logger = logging.getLogger('ath10k-check')
 
-# use instead nproc(1)
-cores = '8'
-threads = int(cores) + 2
+threads = 1
 
 class CPWarning():
     def __str__(self):
@@ -83,7 +107,7 @@ def run_gcc():
     logger.debug('%s' % cmd)
     subprocess.call(cmd, shell=True)
 
-    cmd = ['make', '-k', '-j', cores, DRIVER_DIR]
+    cmd = ['make', '-k', '-j', str(threads), DRIVER_DIR]
     logger.debug('%s' % cmd)
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (stdout, stderr) = p.communicate()
@@ -96,7 +120,7 @@ def run_gcc():
     return p.returncode
 
 def run_sparse():
-    cmd = ['make', '-k', '-j', cores, DRIVER_DIR, 'C=2', 'CF="-D__CHECK_ENDIAN__"']
+    cmd = ['make', '-k', '-j', str(threads), DRIVER_DIR, 'C=2', 'CF="-D__CHECK_ENDIAN__"']
     logger.debug('%s' % cmd)
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (stdout, stderr) = p.communicate()
@@ -244,9 +268,45 @@ def run_checkpatch():
     return 0
 
 def main():
-    logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s')
+    global threads
 
-    parser = argparse.ArgumentParser(description='ath10k source code checker')
+    checkpatch_url = GIT_URL % (CHECKPATCH_COMMIT)
+
+    
+    description = '''ath10k source code checker
+
+Runs various tests (gcc, sparse and checkpatch) with filtering
+unnecessary warnings away, the goal is to have empty output from the
+script.
+
+Run this from the main kernel source directory which is preconfigured
+with ath10k enabled. gcc recompilation is forced every time,
+irrespective if there are any changes in source or not. So this can be
+run multiple times and every time the same warnings will appear.
+
+Requirements (all available in $PATH):
+
+* gcc
+* sparse
+* checkpatch.pl
+* gtags (from package global)
+
+'''
+
+    
+    s = '''Installation: 
+
+As checkpatch is evolving this script always matches a certain version
+of checkpatch. Download the checkpatch version from the URL below and
+install it somewhere in your $$PATH:
+
+$CHECKPATCH_URL
+'''
+
+    epilog = string.Template(s).substitute(CHECKPATCH_URL=checkpatch_url)
+
+    parser = argparse.ArgumentParser(description=description, epilog=epilog, 
+                                     formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument('-d', '--debug', action='store_true',
                         help='enable debug messages')
@@ -256,8 +316,15 @@ def main():
 
     args = parser.parse_args()
 
+    timefmt = ''
+
     if args.debug:
         logger.setLevel(logging.DEBUG)
+        timefmt = '%(asctime)s '
+
+    logfmt = '%s%%(levelname)s: %%(message)s' % (timefmt)
+
+    logging.basicConfig(format=logfmt)
 
     if args.fast:
         gcc = True
@@ -267,6 +334,16 @@ def main():
         gcc = True
         sparse = True
         checkpatch = True
+
+    try:
+        cores = subprocess.check_output(['nproc2'])
+    except OSError, subprocess.CalledProcessError:
+        cores = '4'
+        logger.warning('Failed to run nproc, assuming %s cores' % (cores))
+
+    threads = int(cores) + 2
+
+    logger.debug('threads %d' % (threads))
 
     if gcc:
         ret = run_gcc()
