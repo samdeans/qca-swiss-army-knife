@@ -27,6 +27,8 @@ import tempfile
 import Queue
 import threading
 import string
+import hashlib
+import distutils.spawn
 
 CHECKPATCH_COMMIT = '46d832f5e2102cce455672c5a0b8cbe97e27fe42'
 
@@ -279,6 +281,52 @@ def run_checkpatch(args):
 
     return 0
 
+def show_version(args):
+    gcc_version = 'not found'
+    sparse_version = 'not found'
+    checkpatch_version = 'not found'
+    checkpatch_md5sum = 'N/A'
+    gtags_version = 'not found'
+
+    run = subprocess.check_output
+
+    f = open(sys.argv[0], 'r')
+    ath10kcheck_md5sum = hashlib.md5(f.read()).hexdigest()
+    f.close()
+
+    try:
+        gcc_version = run(['gcc', '--version']).splitlines()[0]
+    except:
+        pass
+
+    try:
+        sparse_version = run(['sparse', '--version']).splitlines()[0]
+    except:
+        pass
+
+    try:
+        checkpatch_version = run(['checkpatch.pl', '--version']).splitlines()[1]
+        path = distutils.spawn.find_executable('checkpatch.pl', os.environ['PATH'])
+        f = open(path, 'r')
+        checkpatch_md5sum = hashlib.md5(f.read()).hexdigest()
+        f.close()
+    except:
+        pass
+
+    try:
+        gtags_version = run(['gtags', '--version']).splitlines()[0]
+    except:
+        pass
+
+    print 'ath10k-check (md5sum %s)' % (ath10kcheck_md5sum)
+    print
+    print 'gcc:\t\t%s' % (gcc_version)
+    print 'sparse:\t\t%s' % (sparse_version)
+    print 'checkpatch.pl:\t%s (md5sum %s)' % (checkpatch_version, checkpatch_md5sum)
+    print 'gtags:\t\t%s' % (gtags_version)
+
+    sys.exit(0)
+    
 def main():
     global threads
 
@@ -329,6 +377,9 @@ $CHECKPATCH_URL
     parser.add_argument('--no-filter', action='store_true',
                         help='Don\'t filter output with regexp: %r' % (FILTER_REGEXP))
 
+    parser.add_argument('--version', action='store_true',
+                        help='Show version information about dependencies')
+
     args = parser.parse_args()
 
     timefmt = ''
@@ -340,6 +391,9 @@ $CHECKPATCH_URL
     logfmt = '%s%%(levelname)s: %%(message)s' % (timefmt)
 
     logging.basicConfig(format=logfmt)
+
+    if args.version:
+        show_version(args)
 
     if args.fast:
         gcc = True
