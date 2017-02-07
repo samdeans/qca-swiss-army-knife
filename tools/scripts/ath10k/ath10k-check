@@ -122,6 +122,7 @@ def run_gcc(args):
         for line in stderr.splitlines():
             match = re.search(FILTER_REGEXP, line)
             if not args.no_filter and not match:
+                logger.debug('FILTERED: %s' % line)
                 continue
 
             print line.strip()
@@ -140,6 +141,7 @@ def run_sparse(args):
         for line in stderr.splitlines():
             match = re.search(FILTER_REGEXP, line)
             if not args.no_filter and not match:
+                logger.debug('FILTERED: %s' % line)
                 continue
 
             print line.strip()
@@ -187,7 +189,7 @@ def is_filtered(cpwarning):
 
     return False
 
-def run_checkpatch_cmd(q, tag_map):
+def run_checkpatch_cmd(args, q, tag_map):
     checkpatch_cmd = ['checkpatch.pl']
     checkpatch_cmd += CHECKPATCH_OPTS
     checkpatch_cmd += ['--ignore', ",".join(CHECKPATCH_IGNORE), '-f']
@@ -211,7 +213,7 @@ def run_checkpatch_cmd(q, tag_map):
             w = parse_checkpatch_warning(line)
             w.tag = find_tagname(tag_map, f, w.lineno)
 
-            if is_filtered(w):
+            if not args.no_filter and is_filtered(w):
                 logger.debug('FILTERED: %s' % w)
                 continue
 
@@ -273,7 +275,7 @@ def run_checkpatch(args):
 
     # run checkpatch for all files
     for i in range(threads):
-        t = threading.Thread(target=run_checkpatch_cmd, args = (q,tag_map))
+        t = threading.Thread(target=run_checkpatch_cmd, args = (args, q,tag_map))
         t.daemon = True
         t.start()
 
