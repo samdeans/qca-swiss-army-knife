@@ -116,7 +116,13 @@ def run_gcc(args):
     logger.debug('%s' % cmd)
     subprocess.call(cmd, shell=True)
 
-    cmd = ['make', '-k', '-j', str(threads), DRIVER_DIR]
+    cmd = ['make', '-k', '-j', str(threads)]
+
+    if args.extra:
+        cmd.append('W=1')
+
+    cmd.append(DRIVER_DIR)
+
     logger.debug('%s' % cmd)
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (stdout, stderr) = p.communicate()
@@ -381,6 +387,10 @@ $CHECKPATCH_URL
     parser.add_argument('--fast', action='store_true',
                         help='run only tests which finish in few seconds')
 
+    parser.add_argument('--extra', action='store_true',
+                        help='Run optional extra checks, might find false ' +
+                        'positives so it\'s not a requirement to fix these')
+    
     parser.add_argument('--no-filter', action='store_true',
                         help='Don\'t filter output with regexp: %r' % (FILTER_REGEXP))
 
