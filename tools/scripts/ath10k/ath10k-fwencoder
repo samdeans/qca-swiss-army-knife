@@ -24,6 +24,9 @@ import sys
 import os.path
 import traceback
 import binascii
+import tempfile
+import subprocess
+import hashlib
 
 DEFAULT_FW_API_VERSION = 4
 
@@ -53,7 +56,11 @@ ATH10K_FW_FEATURE_SUPPORTS_SKIP_CLOCK_INIT = 9
 ATH10K_FW_FEATURE_RAW_MODE_SUPPORT = 10
 ATH10K_FW_FEATURE_SUPPORTS_ADAPTIVE_CCA = 11
 ATH10K_FW_FEATURE_MFP_SUPPORT = 12
-ATH10K_FW_FEATURE_MAX = 13
+ATH10K_FW_FEATURE_PEER_FLOW_CONTROL = 13
+ATH10K_FW_FEATURE_BTCOEX_PARAM = 14
+ATH10K_FW_FEATURE_SKIP_NULL_FUNC_WAR = 15
+ATH10K_FW_FEATURE_ALLOWS_MESH_BCAST = 16
+ATH10K_FW_FEATURE_MAX = 17
 
 feature_map = {
     'ext-wmi-mgmt-rx': ATH10K_FW_FEATURE_EXT_WMI_MGMT_RX,
@@ -69,7 +76,11 @@ feature_map = {
     'skip-clock-init': ATH10K_FW_FEATURE_SUPPORTS_SKIP_CLOCK_INIT,
     'raw-mode': ATH10K_FW_FEATURE_RAW_MODE_SUPPORT,
     'adaptive-cca': ATH10K_FW_FEATURE_SUPPORTS_ADAPTIVE_CCA,
-    'mfp-support': ATH10K_FW_FEATURE_MFP_SUPPORT
+    'mfp-support': ATH10K_FW_FEATURE_MFP_SUPPORT,
+    'peer-flow-ctrl': ATH10K_FW_FEATURE_PEER_FLOW_CONTROL,
+    'btcoex-param': ATH10K_FW_FEATURE_BTCOEX_PARAM,
+    'skip-null-func-war': ATH10K_FW_FEATURE_SKIP_NULL_FUNC_WAR,
+    'allows-mesh-bcast': ATH10K_FW_FEATURE_ALLOWS_MESH_BCAST,
     }
 
 # from enum ath10k_fw_wmi_op_version in ath10k/hw.h
@@ -180,7 +191,7 @@ class FirmwareContainer:
 
         # remove trailing null bits away, that changing only
         # maximum doesn't affect created binary size
-        length = int(math.ceil(max_set / float(8)))
+        length = int(math.ceil((max_set + 1) / float(8)))
         bytes = bytes[:length]
 
         buf = ctypes.create_string_buffer(length)
@@ -419,6 +430,42 @@ class Ath10kFirmwareContainer(object):
     def get_fw_version(self):
         return self.fw_version
 
+    def get_summary(self):
+        s = ''
+
+        s = s + 'FileSize: %s\n' % (len(self.file))
+        s = s + 'FileCRC32: %08x\n' % (_crc32(self.file))
+        s = s + 'FileMD5: %s\n' % (hashlib.md5(self.file).hexdigest())
+
+        if self.get_fw_version():
+            s = s + 'FirmwareVersion: %s\n' % (self.get_fw_version())
+
+        if self.get_timestamp():
+            s = s + 'Timestamp: %s\n' % (self.get_timestamp_as_iso8601())
+
+        if self.get_features():
+            s = s + 'Features: %s\n' % (self.get_features())
+
+        if self.get_fw_image():
+            s = s + 'FirmwareImageSize: %s\n' % (len(self.get_fw_image()))
+            s = s + 'FirmwareImageCRC32: %08x\n' % (_crc32(self.get_fw_image()))
+
+        if self.get_otp_image():
+            s = s + 'OTPImageSize: %s\n' % (len(self.get_otp_image()))
+            s = s + 'OTPImageCRC32: %08x\n' % (_crc32(self.get_otp_image()))
+
+        if self.get_wmi_op_version():
+            s = s + 'WMIOpVersion: %s\n' % (self.get_wmi_op_version())
+
+        if self.get_htt_op_version():
+            s = s + 'HTTOpVersion: %s\n' % (self.get_htt_op_version())
+
+        if self.get_fw_code_swap_image():
+            s = s + 'FirmwareCodeSwapImageSize: %s\n' % (len(self.get_fw_code_swap_image()))
+            s = s + 'FirmwareCodeSwapImageCRC32: %08x\n' % (_crc32(self.get_fw_code_swap_image()))
+
+        return s.strip()
+
     def load(self, filename):
         c = FirmwareContainer(ATH10K_SIGNATURE)
         c.open(filename)
@@ -536,39 +583,7 @@ def info(options, args):
     c = Ath10kFirmwareContainer()
     c.load(filename)
 
-    s = ''
-
-    s = s + 'FileSize: %s\n' % (len(c.file))
-    s = s + 'FileCRC32: %08x\n' % (_crc32(c.file))
-
-    if c.get_fw_version():
-        s = s + 'FirmwareVersion: %s\n' % (c.get_fw_version())
-
-    if c.get_timestamp():
-        s = s + 'Timestamp: %s\n' % (c.get_timestamp_as_iso8601())
-
-    if c.get_features():
-        s = s + 'Features: %s\n' % (c.get_features())
-
-    if c.get_fw_image():
-        s = s + 'FirmwareImageSize: %s\n' % (len(c.get_fw_image()))
-        s = s + 'FirmwareImageCRC32: %08x\n' % (_crc32(c.get_fw_image()))
-
-    if c.get_otp_image():
-        s = s + 'OTPImageSize: %s\n' % (len(c.get_otp_image()))
-        s = s + 'OTPImageCRC32: %08x\n' % (_crc32(c.get_otp_image()))
-
-    if c.get_wmi_op_version():
-        s = s + 'WMIOpVersion: %s\n' % (c.get_wmi_op_version())
-
-    if c.get_htt_op_version():
-        s = s + 'HTTOpVersion: %s\n' % (c.get_htt_op_version())
-
-    if c.get_fw_code_swap_image():
-        s = s + 'FirmwareCodeSwapImageSize: %s\n' % (len(c.get_fw_code_swap_image()))
-        s = s + 'FirmwareCodeSwapImageCRC32: %08x\n' % (_crc32(c.get_fw_code_swap_image()))
-
-    print s.strip()
+    print c.get_summary()
 
 
 def dump(options, args):
@@ -743,6 +758,48 @@ def cmd_crc32(options, args):
     f.close()
 
 
+def cmd_diff(options, args):
+    if len(args) != 2:
+        print 'Usage: ath10k-fwencoder --diff FILE FILE'
+        return 1
+
+    filename1 = args[0]
+    filename2 = args[1]
+
+    c1 = Ath10kFirmwareContainer()
+    c1.load(filename1)
+    (temp1_fd, temp1_pathname) = tempfile.mkstemp()
+    os.write(temp1_fd, c1.get_summary())
+
+    c2 = Ath10kFirmwareContainer()
+    c2.load(filename2)
+    (temp2_fd, temp2_pathname) = tempfile.mkstemp()
+    os.write(temp2_fd, c2.get_summary())
+
+    # '--less-mode' and '--auto-page' would be nice when running on
+    # terminal but don't know how to get the control character
+    # through. For terminal detection sys.stdout.isatty() can be used.
+    cmd = ['wdiff', temp1_pathname, temp2_pathname]
+
+    # wdiff is braindead and returns 1 in a succesfull case
+    try:
+        output = subprocess.check_output(cmd)
+    except subprocess.CalledProcessError as e:
+        if e.returncode == 1:
+            output = e.output
+        else:
+            logger.error('Failed to run wdiff: %d\n%s' % (e.returncode, e.output))
+            return 1
+    except OSError as e:
+        logger.error('Failed to run wdiff: %s' % (e))
+        return 1
+
+    print output
+
+    os.close(temp1_fd)
+    os.close(temp2_fd)
+
+
 def main():
     global logger
 
@@ -770,6 +827,8 @@ def main():
                       help='Modify the container file')
     parser.add_option('--crc32', action='store_true', dest='crc32',
                       help='Count crc32 checksum for a file')
+    parser.add_option('--diff', action='store_true', dest='diff',
+                      help='Show differences between two firmware files')
 
     # parameters
     parser.add_option("-o", "--output", action="store", type="string",
@@ -843,6 +902,8 @@ def main():
         return modify(options, args)
     elif options.crc32:
         return cmd_crc32(options, args)
+    elif options.diff:
+        return cmd_diff(options, args)
     else:
         print 'Action command missing'
         return 1

@@ -21,8 +21,12 @@ import sys
 import os.path
 from optparse import OptionParser
 import json
+import binascii
+import hashlib
+import tempfile
+import subprocess
 
-MAX_BUF_LEN = 200000
+MAX_BUF_LEN = 2000000
 ATH10K_BOARD_SIGNATURE = "QCA-ATH10K-BOARD"
 
 DEFAULT_BD_API = 2
@@ -57,6 +61,20 @@ def add_ie(buf, offset, id, value):
     offset = offset + TYPE_LENGTH_SIZE + len(value) + padding_len
 
     return offset
+
+
+# to workaround annoying python feature of returning negative hex values
+def hex32(val):
+    return val & 0xffffffff
+
+
+# match with kernel crc32_le(0, buf, buf_len) implementation
+def _crc32(buf):
+    return hex32(~(hex32(binascii.crc32(buf, 0xffffffff))))
+
+
+def pretty_array_str(array):
+    return '\',\''.join(array)
 
 
 class BoardContainer:
@@ -180,6 +198,33 @@ class BoardContainer:
             self.boards.append(board)
             i = i + 1
 
+    def get_summary(self, sort=False):
+        s = ''
+
+        s += 'FileSize: %d\n' % (self.buf_len)
+        s += 'FileCRC32: %08x\n' % (_crc32(self.buf))
+        s += 'FileMD5: %s\n' % (hashlib.md5(self.buf).hexdigest())
+
+        boards = self.boards
+
+        if sort:
+            boards = sorted(boards, key=lambda board: board['names'])
+
+        index = 0
+        for board in boards:
+            if not sort:
+                index_s = '[%d]' % (index)
+            else:
+                index_s = ''
+
+            s += 'BoardNames%s: \'%s\'\n' % (index_s, pretty_array_str(board['names']))
+            s += 'BoardLength%s: %d\n' % (index_s, len(board['data']))
+            s += 'BoardCRC32%s: %08x\n' % (index_s, _crc32(board['data']))
+            s += 'BoardMD5%s: %s\n' % (index_s, hashlib.md5(board['data']).hexdigest())
+            index += 1
+
+        return s
+
     def __init__(self):
         self.buf = ctypes.create_string_buffer(MAX_BUF_LEN)
         self.buf_len = 0
@@ -214,10 +259,105 @@ def extract(options, args):
 
     filename = DEFAULT_JSON_FILE
     f = open(filename, 'w')
-    f.write(json.dumps(mapping))
+    f.write(json.dumps(mapping, indent=4))
     f.close()
 
     print "%s created" % (filename)
+
+
+def cmd_info(options, args):
+    if len(args) != 1:
+        print "Error: extract option requires input filename\n"
+        usage()
+        return 1
+
+    filename = args[0]
+
+    cont = BoardContainer()
+    cont.open(filename)
+
+    print cont.get_summary()
+
+
+def cmd_diff(options, args):
+    if len(args) != 2:
+        print 'Usage: ath10k-bdencoder --diff FILE FILE'
+        return 1
+
+    filename1 = args[0]
+    filename2 = args[1]
+
+    container1 = BoardContainer()
+    container1.open(filename1)
+    (temp1_fd, temp1_pathname) = tempfile.mkstemp()
+    os.write(temp1_fd, container1.get_summary(sort=True))
+
+    container2 = BoardContainer()
+    container2.open(filename2)
+    (temp2_fd, temp2_pathname) = tempfile.mkstemp()
+    os.write(temp2_fd, container2.get_summary(sort=True))
+
+    # '--less-mode' and '--auto-page' would be nice when running on
+    # terminal but don't know how to get the control character
+    # through. For terminal detection sys.stdout.isatty() can be used.
+    cmd = ['wdiff', temp1_pathname, temp2_pathname]
+
+    # wdiff is braindead and returns 1 in a succesfull case
+    try:
+        output = subprocess.check_output(cmd)
+    except subprocess.CalledProcessError as e:
+        if e.returncode == 1:
+            output = e.output
+        else:
+            print 'Failed to run wdiff: %d\n%s' % (e.returncode, e.output)
+            return 1
+    except OSError as e:
+        print 'Failed to run wdiff: %s' % (e)
+        return 1
+
+    print output
+
+    # create simple statistics about changes in board images
+
+    new_boards = {}
+    deleted_boards = {}
+    changed_boards = {}
+
+    for board in container2.boards:
+        # convert the list to a string
+        s = pretty_array_str(board['names'])
+        new_boards[s] = board
+
+    for board in container1.boards:
+        # convert the list to a string
+        names = pretty_array_str(board['names'])
+
+        if names not in new_boards:
+            # board image has been deleted
+            deleted_boards[names] = board
+            continue
+
+        board2 = new_boards[names]
+        del new_boards[names]
+
+        if board['data'] == board2['data']:
+            # board image hasn't changed
+            continue
+
+        # board image has changed
+        changed_boards[names] = board2
+
+    print 'New:\n%s\n' % ('\n'.join(new_boards.keys()))
+    print 'Changed:\n%s\n' % ('\n'.join(changed_boards.keys()))
+    print 'Deleted:\n%s' % ('\n'.join(deleted_boards.keys()))
+
+    print '%d board image(s) added, %d changed, %d deleted, %d in total' % (len(new_boards),
+                                                                         len(changed_boards),
+                                                                         len(deleted_boards),
+                                                                         len(container2.boards))
+
+    os.close(temp1_fd)
+    os.close(temp2_fd)
 
 
 def create(options):
@@ -257,6 +397,10 @@ def main():
                            'mapping file')
     parser.add_option("-e", "--extract", action="store_true", dest="extract",
                       help='extract board file from encoded single binary')
+    parser.add_option("-i", "--info", action="store_true", dest="info",
+                      help='show all details about the file')
+    parser.add_option("--diff", action="store_true",
+                      help='Show differences between two files')
     parser.add_option("-o", "--output", action="store", type="string",
                       dest="output", help='Name of output file')
 
@@ -270,6 +414,10 @@ def main():
             sys.exit(2)
     elif options.extract:
         return extract(options, args)
+    elif options.info:
+        return cmd_info(options, args)
+    elif options.diff:
+        return cmd_diff(options, args)
     else:
         return usage()
 
