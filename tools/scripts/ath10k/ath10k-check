@@ -47,9 +47,6 @@ CHECKPATCH_IGNORE = [ 'MSLEEP',
                       # ath10k does not follow networking comment style
                       'NETWORKING_BLOCK_COMMENT_STYLE',
 
-                      # TODO: valid warnings, should be enabled
-                      'BLOCK_COMMENT_STYLE',
-
                       'LINUX_VERSION_CODE',
                       'COMPLEX_MACRO',
                       'PREFER_DEV_LEVEL',
