@@ -67,9 +67,6 @@ CHECKPATCH_IGNORE = [ 'MSLEEP',
                       # Not sure if these really useful warnings,
                       # disable for now.
                       'MACRO_ARG_PRECEDENCE',
-
-                      # TODO: should fix these warnings, pretty easy
-                      'SYMBOLIC_PERMS'
 ]
 
 CHECKPATCH_OPTS = [ '--strict', '-q', '--terse', '--no-summary',
