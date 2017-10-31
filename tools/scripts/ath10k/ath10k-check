@@ -38,39 +38,39 @@ DRIVER_DIR = 'drivers/net/wireless/ath/ath10k/'
 
 FILTER_REGEXP = r'/ath'
 
-IGNORE_FILES = [ 'trace.h' ]
+IGNORE_FILES = ['trace.h']
 
-CHECKPATCH_IGNORE = [ 'MSLEEP',
-                      'USLEEP_RANGE',
-                      'PRINTK_WITHOUT_KERN_LEVEL',
+CHECKPATCH_IGNORE = ['MSLEEP',
+                     'USLEEP_RANGE',
+                     'PRINTK_WITHOUT_KERN_LEVEL',
 
-                      # ath10k does not follow networking comment style
-                      'NETWORKING_BLOCK_COMMENT_STYLE',
+                     # ath10k does not follow networking comment style
+                     'NETWORKING_BLOCK_COMMENT_STYLE',
 
-                      'LINUX_VERSION_CODE',
-                      'COMPLEX_MACRO',
-                      'PREFER_DEV_LEVEL',
-                      'PREFER_PR_LEVEL',
-                      'COMPARISON_TO_NULL',
-                      'BIT_MACRO',
-                      'CONSTANT_COMPARISON',
-                      'MACRO_WITH_FLOW_CONTROL',
-                      
-                      # Spams hundreds of lines useless 'struct should
-                      # normally be const' warnings, maybe a bug in
-                      # checkpatch?
-                      'CONST_STRUCT',
+                     'LINUX_VERSION_CODE',
+                     'COMPLEX_MACRO',
+                     'PREFER_DEV_LEVEL',
+                     'PREFER_PR_LEVEL',
+                     'COMPARISON_TO_NULL',
+                     'BIT_MACRO',
+                     'CONSTANT_COMPARISON',
+                     'MACRO_WITH_FLOW_CONTROL',
 
-                      # TODO: look like valid warnings, investigate
-                      'MACRO_ARG_REUSE',
+                     # Spams hundreds of lines useless 'struct should
+                     # normally be const' warnings, maybe a bug in
+                     # checkpatch?
+                     'CONST_STRUCT',
 
-                      # Not sure if these really useful warnings,
-                      # disable for now.
-                      'MACRO_ARG_PRECEDENCE',
-]
+                     # TODO: look like valid warnings, investigate
+                     'MACRO_ARG_REUSE',
 
-CHECKPATCH_OPTS = [ '--strict', '-q', '--terse', '--no-summary',
-                    '--max-line-length=90', '--show-types' ]
+                     # Not sure if these really useful warnings,
+                     # disable for now.
+                     'MACRO_ARG_PRECEDENCE',
+                     ]
+
+CHECKPATCH_OPTS = ['--strict', '-q', '--terse', '--no-summary',
+                   '--max-line-length=90', '--show-types']
 
 checkpatch_filter = [
     ('ath10k_read_simulate_fw_crash', 'LONG_LINE'),
@@ -89,7 +89,9 @@ logger = logging.getLogger('ath10k-check')
 
 threads = 1
 
+
 class CPWarning():
+
     def __str__(self):
         return 'CPWarning(%s, %s, %s, %s, %s)' % (self.path, self.lineno,
                                                   self.tag, self.type,
@@ -101,6 +103,7 @@ class CPWarning():
         self.type = ''
         self.msg = ''
         self.tag = ''
+
 
 def run_gcc(args):
     # to disable utf-8 from gcc, easier to paste that way
@@ -134,8 +137,10 @@ def run_gcc(args):
 
     return p.returncode
 
+
 def run_sparse(args):
-    cmd = ['make', '-k', '-j', str(threads), DRIVER_DIR, 'C=2', 'CF="-D__CHECK_ENDIAN__"']
+    cmd = ['make', '-k', '-j',
+           str(threads), DRIVER_DIR, 'C=2', 'CF="-D__CHECK_ENDIAN__"']
     logger.debug('%s' % cmd)
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (stdout, stderr) = p.communicate()
@@ -152,6 +157,7 @@ def run_sparse(args):
             print line.strip()
 
     return p.returncode
+
 
 def find_tagname(tag_map, filename, lineno):
     # we need the tags sorted per linenumber
@@ -170,8 +176,9 @@ def find_tagname(tag_map, filename, lineno):
 
     return None
 
+
 def parse_checkpatch_warning(line):
-    m = re.match( r'(.*):(\d+): .*:(.*): (.*)', line, re.M|re.I)
+    m = re.match(r'(.*):(\d+): .*:(.*): (.*)', line, re.M | re.I)
     result = CPWarning()
     result.path = m.group(1)
     result.lineno = m.group(2)
@@ -180,19 +187,21 @@ def parse_checkpatch_warning(line):
 
     return result
 
+
 def is_filtered(cpwarning):
-    if cpwarning.tag == None:
+    if cpwarning.tag is None:
         return False
 
     for (tag, type) in checkpatch_filter:
         matchobj = re.match(tag, cpwarning.tag)
-        if matchobj == None:
+        if matchobj is None:
             continue
 
         if cpwarning.type == type:
             return True
 
     return False
+
 
 def run_checkpatch_cmd(args, q, tag_map):
     checkpatch_cmd = ['checkpatch.pl']
@@ -207,10 +216,11 @@ def run_checkpatch_cmd(args, q, tag_map):
             break
 
         cmd = checkpatch_cmd + [f]
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        p = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         (stdoutdata, stderrdata) = p.communicate()
 
-        if stdoutdata == None:
+        if stdoutdata is None:
             continue
 
         lines = stdoutdata.splitlines()
@@ -226,6 +236,7 @@ def run_checkpatch_cmd(args, q, tag_map):
             print '%s:%s: %s' % (w.path, w.lineno, w.msg)
 
         q.task_done()
+
 
 def run_checkpatch(args):
     # get all files which need to be checked
@@ -268,7 +279,7 @@ def run_checkpatch(args):
             tagname = columns[0]
             line = int(columns[1])
 
-            if not tag_map.has_key(f):
+            if f in tag_map:
                 tag_map[f] = []
 
             tag_map[f].append((line, tagname))
@@ -280,13 +291,15 @@ def run_checkpatch(args):
 
     # run checkpatch for all files
     for i in range(threads):
-        t = threading.Thread(target=run_checkpatch_cmd, args = (args, q,tag_map))
+        t = threading.Thread(
+            target=run_checkpatch_cmd, args=(args, q, tag_map))
         t.daemon = True
         t.start()
 
     q.join()
 
     return 0
+
 
 def show_version(args):
     gcc_version = 'not found'
@@ -312,8 +325,10 @@ def show_version(args):
         pass
 
     try:
-        checkpatch_version = run(['checkpatch.pl', '--version']).splitlines()[1]
-        path = distutils.spawn.find_executable('checkpatch.pl', os.environ['PATH'])
+        checkpatch_version = run(
+            ['checkpatch.pl', '--version']).splitlines()[1]
+        path = distutils.spawn.find_executable(
+            'checkpatch.pl', os.environ['PATH'])
         f = open(path, 'r')
         checkpatch_md5sum = hashlib.md5(f.read()).hexdigest()
         f.close()
@@ -333,13 +348,13 @@ def show_version(args):
     print 'gtags:\t\t%s' % (gtags_version)
 
     sys.exit(0)
-    
+
+
 def main():
     global threads
 
     checkpatch_url = GIT_URL % (CHECKPATCH_COMMIT)
 
-    
     description = '''ath10k source code checker
 
 Runs various tests (gcc, sparse and checkpatch) with filtering
@@ -360,8 +375,7 @@ Requirements (all available in $PATH):
 
 '''
 
-    
-    s = '''Installation: 
+    s = '''Installation:
 
 As checkpatch is evolving this script always matches a certain version
 of checkpatch. Download the checkpatch version from the URL below and
@@ -372,7 +386,7 @@ $CHECKPATCH_URL
 
     epilog = string.Template(s).substitute(CHECKPATCH_URL=checkpatch_url)
 
-    parser = argparse.ArgumentParser(description=description, epilog=epilog, 
+    parser = argparse.ArgumentParser(description=description, epilog=epilog,
                                      formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument('-d', '--debug', action='store_true',
@@ -384,7 +398,7 @@ $CHECKPATCH_URL
     parser.add_argument('--extra', action='store_true',
                         help='Run optional extra checks, might find false ' +
                         'positives so it\'s not a requirement to fix these')
-    
+
     parser.add_argument('--no-filter', action='store_true',
                         help='Don\'t filter output with regexp: %r' % (FILTER_REGEXP))
 
@@ -444,5 +458,4 @@ $CHECKPATCH_URL
             sys.exit(3)
 
 if __name__ == "__main__":
-   main()
-
+    main()
