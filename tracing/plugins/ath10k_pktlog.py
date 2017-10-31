@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2014 Qualcomm Atheros, Inc.
+# Copyright (c) 2014-2017 Qualcomm Atheros, Inc.
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -25,17 +25,18 @@ import binascii
 
 DEBUG = 1
 
-CUR_PKTLOG_VER          = 10010
-PKTLOG_MAGIC_NUM        = 7735225
+CUR_PKTLOG_VER = 10010
+PKTLOG_MAGIC_NUM = 7735225
 
-IEEE80211_FCTL_TODS     = 0x0100
-IEEE80211_FCTL_FROMDS   = 0x0200
-TARGET_NUM_MSDU_DESC    = (1024 + 400)
-MAX_PKT_INFO_MSDU_ID    = 192
+IEEE80211_FCTL_TODS = 0x0100
+IEEE80211_FCTL_FROMDS = 0x0200
+TARGET_NUM_MSDU_DESC = (1024 + 400)
+MAX_PKT_INFO_MSDU_ID = 192
 MAX_10_4_PKT_INFO_MSDU_ID = 1
-PKTLOG_MAX_TXCTL_WORDS  = 57
+PKTLOG_MAX_TXCTL_WORDS = 57
 
-# must match with enum ath10k_hw_rev from ath10k and existing values should not change
+# must match with enum ath10k_hw_rev from ath10k and existing values
+# should not change
 ATH10K_PKTLOG_HW_QCA988X = 0
 ATH10K_PKTLOG_HW_QCA6174 = 1
 ATH10K_PKTLOG_HW_QCA99X0 = 2
@@ -71,25 +72,27 @@ msdu_len_tbl = {}
 output_file = None
 frm_hdr = None
 
+
 def dbg(msg):
     if DEBUG == 0:
         return
 
     print msg
 
+
 def hexdump(buf, prefix=None):
     s = binascii.b2a_hex(buf)
     s_len = len(s)
     result = ""
 
-    if prefix == None:
+    if prefix is None:
         prefix = ""
 
     for i in range(s_len / 2):
         if i % 16 == 0:
             result = result + ("%s%04x: " % (prefix, i))
 
-        result = result + (s[2*i] + s[2*i+1] + " ")
+        result = result + (s[2 * i] + s[2 * i + 1] + " ")
 
         if (i + 1) % 16 == 0:
             result = result + "\n"
@@ -106,6 +109,8 @@ def hexdump(buf, prefix=None):
 # 	unsigned int timestamp;
 # 	unsigned char payload[0];
 # } __attribute__((__packed__));
+
+
 class Ath10kPktlogHdr:
     # 2 + 2 + 2 + 2 + 4 = 12
     hdr_len = 12
@@ -133,7 +138,8 @@ class Ath10kPktlogHdr:
 
     def __str__(self):
         return 'flags %04x miss %d log_type %d size %d timestamp %d\n' % \
-            (self.flags, self.missed_cnt, self.log_type, self.size, self.timestamp)
+            (self.flags, self.missed_cnt,
+             self.log_type, self.size, self.timestamp)
 
     def __init__(self):
         self.flags = 0
@@ -152,6 +158,8 @@ class Ath10kPktlogHdr:
 # 	unsigned int type_specific_data;
 # 	unsigned char payload[0];
 # } __attribute__((__packed__));
+
+
 class Ath10kPktlog_10_4_Hdr:
     # 2 + 2 + 2 + 2 + 4 + 4 = 16
     hdr_len = 16
@@ -159,7 +167,7 @@ class Ath10kPktlog_10_4_Hdr:
 
     def unpack(self, buf, offset=0):
         (self.flags, self.missed_cnt, self.log_type,
-	 self.size, self.timestamp, self.type_specific_data) = struct.unpack_from(self.struct_fmt, buf, 0)
+         self.size, self.timestamp, self.type_specific_data) = struct.unpack_from(self.struct_fmt, buf, 0)
 
         payload_len = len(buf) - self.hdr_len
 
@@ -177,20 +185,22 @@ class Ath10kPktlog_10_4_Hdr:
                            self.log_type,
                            self.size,
                            self.timestamp,
-			   self.type_specific_data)
+                           self.type_specific_data)
 
     def __str__(self):
         return 'flags %04x miss %d log_type %d size %d timestamp %d type_specific_data %d\n' % \
-            (self.flags, self.missed_cnt, self.log_type, self.size, self.timestamp, self.type_specific_data)
+            (self.flags, self.missed_cnt, self.log_type,
+             self.size, self.timestamp, self.type_specific_data)
 
     def __init__(self):
-	self.flags = 0
-	self.missed_cnt = 0
-	self.log_type = 0
-	self.size = 0
-	self.timestamp = 0
-	self.type_specific_data = 0
-	self.payload = []
+        self.flags = 0
+        self.missed_cnt = 0
+        self.log_type = 0
+        self.size = 0
+        self.timestamp = 0
+        self.type_specific_data = 0
+        self.payload = []
+
 
 def output_open():
     global output_file
@@ -202,17 +212,20 @@ def output_open():
     buf = struct.pack('II', PKTLOG_MAGIC_NUM, CUR_PKTLOG_VER)
     output_write(buf)
 
+
 def output_write(buf):
     global output_file
 
     output_file.write(buf)
+
 
 def pktlog_tx_frm_hdr(frame):
     global frm_hdr
 
     try:
         # struct ieee80211_hdr
-        (frame_control, duration_id, addr1a, addr1b, addr1c, addr2a, addr2b, addr2c, addr3a, addr3b, addr3c, seq_ctrl) = struct.unpack_from('<HHI2BI2BI2BH', frame, 0)
+        (frame_control, duration_id, addr1a, addr1b, addr1c, addr2a, addr2b, addr2c,
+         addr3a, addr3b, addr3c, seq_ctrl) = struct.unpack_from('<HHI2BI2BI2BH', frame, 0)
     except struct.error as e:
         dbg('failed to parse struct ieee80211_hdr: %s' % (e))
         return
@@ -236,25 +249,24 @@ def pktlog_tx_frm_hdr(frame):
                           sa_tail, da_tail, resvd)
     dbg('frm_hdr %d B' % len(frm_hdr))
 
+
 def pktlog_tx_ctrl(buf, hw_type):
     global frm_hdr
 
     if hw_type == ATH10K_PKTLOG_HW_QCA988X:
-	hdr = Ath10kPktlogHdr()
-	hdr.unpack(buf)
-	hdr.size = ATH10K_PKTLOG_TXCTL_LEN
+        hdr = Ath10kPktlogHdr()
+        hdr.unpack(buf)
+        hdr.size = ATH10K_PKTLOG_TXCTL_LEN
         num_txctls = ATH10K_PKTLOG_MAX_TXCTL_WORDS
-    elif hw_type == ATH10K_PKTLOG_HW_QCA99X0 or \
-            hw_type == ATH10K_PKTLOG_HW_QCA40XX or \
-		hw_type == ATH10K_PKTLOG_HW_QCA9888 or \
-			hw_type == ATH10K_PKTLOG_HW_QCA9984:
-	hdr = Ath10kPktlog_10_4_Hdr()
-	hdr.unpack(buf)
-	hdr.size = ATH10K_PKTLOG_10_4_TXCTL_LEN
+    elif hw_type in [ATH10K_PKTLOG_HW_QCA99X0, ATH10K_PKTLOG_HW_QCA40XX,
+                     ATH10K_PKTLOG_HW_QCA9888, ATH10K_PKTLOG_HW_QCA9984]:
+        hdr = Ath10kPktlog_10_4_Hdr()
+        hdr.unpack(buf)
+        hdr.size = ATH10K_PKTLOG_10_4_TXCTL_LEN
         num_txctls = ATH10K_PKTLOG_10_4_MAX_TXCTL_WORDS
 
     output_write(hdr.pack())
-    
+
     # write struct ath10k_pktlog_frame
     if frm_hdr:
         output_write(frm_hdr)
@@ -271,48 +283,47 @@ def pktlog_tx_ctrl(buf, hw_type):
             txctl = 0
         output_write(struct.pack('I', txctl))
 
+
 def pktlog_tx_msdu_id(buf, hw_type):
     global msdu_len_tbl
 
     if hw_type == ATH10K_PKTLOG_HW_QCA988X:
-	hdr = Ath10kPktlogHdr()
-	hdr.unpack(buf)
-	hdr.size = 4 + (192 / 8) + 2 * 192
+        hdr = Ath10kPktlogHdr()
+        hdr.unpack(buf)
+        hdr.size = 4 + (192 / 8) + 2 * 192
 
-	# write struct ath10k_pktlog_hdr
-	output_write(hdr.pack())
+        # write struct ath10k_pktlog_hdr
+        output_write(hdr.pack())
 
-	# parse struct msdu_id_info
-	# hdr (12) + num_msdu (4) + bound_bmap (24) = 40
-	msdu_info = hdr.payload[0:28]
-	id = hdr.payload[28:]
-	num_msdu, = struct.unpack_from('I', msdu_info)
-	output_write(msdu_info)
+        # parse struct msdu_id_info
+        # hdr (12) + num_msdu (4) + bound_bmap (24) = 40
+        msdu_info = hdr.payload[0:28]
+        id = hdr.payload[28:]
+        num_msdu, = struct.unpack_from('I', msdu_info)
+        output_write(msdu_info)
 
-	max_pkt_info_msdu_id = MAX_PKT_INFO_MSDU_ID
-    elif hw_type == ATH10K_PKTLOG_HW_QCA99X0 or \
-            hw_type == ATH10K_PKTLOG_HW_QCA40XX or \
-		hw_type == ATH10K_PKTLOG_HW_QCA9888 or \
-			hw_type == ATH10K_PKTLOG_HW_QCA9984:
-	hdr = Ath10kPktlog_10_4_Hdr()
-	hdr.unpack(buf)
+        max_pkt_info_msdu_id = MAX_PKT_INFO_MSDU_ID
+    elif hw_type in [ATH10K_PKTLOG_HW_QCA99X0, ATH10K_PKTLOG_HW_QCA40XX,
+                     ATH10K_PKTLOG_HW_QCA9888, ATH10K_PKTLOG_HW_QCA9984]:
+        hdr = Ath10kPktlog_10_4_Hdr()
+        hdr.unpack(buf)
 
-	# write struct ath10k_pktlog_10_4_hdr
-	output_write(hdr.pack())
+        # write struct ath10k_pktlog_10_4_hdr
+        output_write(hdr.pack())
 
-	# parse struct msdu_id_info
-	# hdr (16) + num_msdu (4) + bound_bmap (1) = 21
-	msdu_info = hdr.payload[0:5]
-	id = hdr.payload[5:]
-	num_msdu, = struct.unpack_from('I', msdu_info)
-	output_write(msdu_info)
+        # parse struct msdu_id_info
+        # hdr (16) + num_msdu (4) + bound_bmap (1) = 21
+        msdu_info = hdr.payload[0:5]
+        id = hdr.payload[5:]
+        num_msdu, = struct.unpack_from('I', msdu_info)
+        output_write(msdu_info)
 
-	max_pkt_info_msdu_id = MAX_10_4_PKT_INFO_MSDU_ID
+        max_pkt_info_msdu_id = MAX_10_4_PKT_INFO_MSDU_ID
 
     for i in range(max_pkt_info_msdu_id):
         if num_msdu > 0:
-	    num_msdu = num_msdu - 1;
-            msdu_id, = struct.unpack_from('<H', id);
+            num_msdu = num_msdu - 1
+            msdu_id, = struct.unpack_from('<H', id)
             id = id[2:]
             if msdu_id not in msdu_len_tbl:
                 dbg('msdu_id %d not found from msdu_len_tbl' % (msdu_id))
@@ -323,6 +334,7 @@ def pktlog_tx_msdu_id(buf, hw_type):
             msdu_len = 0
         output_write(struct.pack('H', msdu_len))
 
+
 def ath10k_htt_pktlog_handler(pevent, trace_seq, event):
     hw_type = int(event.get('hw_type', ATH10K_PKTLOG_HW_QCA988X))
 
@@ -330,12 +342,10 @@ def ath10k_htt_pktlog_handler(pevent, trace_seq, event):
     offset = 0
 
     if hw_type == ATH10K_PKTLOG_HW_QCA988X:
-	hdr = Ath10kPktlogHdr()
-    elif hw_type == ATH10K_PKTLOG_HW_QCA99X0 or \
-            hw_type == ATH10K_PKTLOG_HW_QCA40XX or \
-		hw_type == ATH10K_PKTLOG_HW_QCA9888 or \
-			hw_type == ATH10K_PKTLOG_HW_QCA9984:
-	hdr = Ath10kPktlog_10_4_Hdr()
+        hdr = Ath10kPktlogHdr()
+    elif hw_type in [ATH10K_PKTLOG_HW_QCA99X0, ATH10K_PKTLOG_HW_QCA40XX,
+                     ATH10K_PKTLOG_HW_QCA9888, ATH10K_PKTLOG_HW_QCA9984]:
+        hdr = Ath10kPktlog_10_4_Hdr()
 
     hdr.unpack(buf, offset)
     offset = offset + hdr.hdr_len
@@ -343,18 +353,19 @@ def ath10k_htt_pktlog_handler(pevent, trace_seq, event):
     trace_seq.puts('%s\n' % (hdr))
 
     if hdr.log_type == ATH10K_PKTLOG_TYPE_TX_FRM_HDR:
-	pktlog_tx_frm_hdr(buf[hdr.hdr_len:])
+        pktlog_tx_frm_hdr(buf[hdr.hdr_len:])
     elif hdr.log_type == ATH10K_PKTLOG_TYPE_TX_CTRL:
         pktlog_tx_ctrl(buf, hw_type)
     elif hdr.log_type == ATH10K_PKTLOG_TYPE_TX_MSDU_ID:
-	pktlog_tx_msdu_id(buf, hw_type)
+        pktlog_tx_msdu_id(buf, hw_type)
     elif hdr.log_type == ATH10K_PKTLOG_TYPE_TX_STAT or \
             hdr.log_type == ATH10K_PKTLOG_TYPE_RX_STAT or \
             hdr.log_type == ATH10K_PKTLOG_TYPE_RC_FIND or \
             hdr.log_type == ATH10K_PKTLOG_TYPE_RC_UPDATE:
-        output_write(buf[0 : offset + hdr.size])
+        output_write(buf[0: offset + hdr.size])
     else:
         pass
+
 
 def ath10k_htt_rx_desc_handler(pevent, trace_seq, event):
     hw_type = int(event.get('hw_type', ATH10K_PKTLOG_HW_QCA988X))
@@ -364,30 +375,29 @@ def ath10k_htt_rx_desc_handler(pevent, trace_seq, event):
     trace_seq.puts('len %d\n' % (len(rxdesc)))
 
     if hw_type == ATH10K_PKTLOG_HW_QCA988X:
-	hdr = Ath10kPktlogHdr()
-	hdr.flags = (1 << ATH10K_PKTLOG_FLG_TYPE_REMOTE_S)
-	hdr.missed_cnt = 0
-	hdr.log_type = ATH10K_PKTLOG_TYPE_RX_STAT
-	# rx_desc size for QCA988x chipsets is 248
-	hdr.size = 248
-	output_write(hdr.pack())
-	output_write(rxdesc[0 : 32])
-	output_write(rxdesc[36 : 56])
-	output_write(rxdesc[76 : 208])
-	output_write(rxdesc[228 : ])
+        hdr = Ath10kPktlogHdr()
+        hdr.flags = (1 << ATH10K_PKTLOG_FLG_TYPE_REMOTE_S)
+        hdr.missed_cnt = 0
+        hdr.log_type = ATH10K_PKTLOG_TYPE_RX_STAT
+        # rx_desc size for QCA988x chipsets is 248
+        hdr.size = 248
+        output_write(hdr.pack())
+        output_write(rxdesc[0: 32])
+        output_write(rxdesc[36: 56])
+        output_write(rxdesc[76: 208])
+        output_write(rxdesc[228:])
 
-    elif hw_type == ATH10K_PKTLOG_HW_QCA99X0 or \
-            hw_type == ATH10K_PKTLOG_HW_QCA40XX or \
-		hw_type == ATH10K_PKTLOG_HW_QCA9888 or \
-			hw_type == ATH10K_PKTLOG_HW_QCA9984:
-	hdr = Ath10kPktlog_10_4_Hdr()
-	hdr.flags = (1 << ATH10K_PKTLOG_FLG_TYPE_REMOTE_S)
-	hdr.missed_cnt = 0
-	hdr.log_type = ATH10K_PKTLOG_TYPE_RX_STAT
-	hdr.type_specific_data = 0
-	hdr.size = len(rxdesc)
-	output_write(hdr.pack())
-	output_write(rxdesc)
+    elif hw_type in [ATH10K_PKTLOG_HW_QCA99X0, ATH10K_PKTLOG_HW_QCA40XX,
+                     ATH10K_PKTLOG_HW_QCA9888, ATH10K_PKTLOG_HW_QCA9984]:
+        hdr = Ath10kPktlog_10_4_Hdr()
+        hdr.flags = (1 << ATH10K_PKTLOG_FLG_TYPE_REMOTE_S)
+        hdr.missed_cnt = 0
+        hdr.log_type = ATH10K_PKTLOG_TYPE_RX_STAT
+        hdr.type_specific_data = 0
+        hdr.size = len(rxdesc)
+        output_write(hdr.pack())
+        output_write(rxdesc)
+
 
 def ath10k_htt_tx_handler(pevent, trace_seq, event):
     global msdu_len_tbl
@@ -402,6 +412,7 @@ def ath10k_htt_tx_handler(pevent, trace_seq, event):
 
     msdu_len_tbl[msdu_id] = msdu_len
 
+
 def ath10k_txrx_tx_unref_handler(pevent, trace_seq, event):
     global msdu_len_tbl
     msdu_id = long(event['msdu_id'])
@@ -414,10 +425,12 @@ def ath10k_txrx_tx_unref_handler(pevent, trace_seq, event):
 
     msdu_len_tbl[msdu_id] = 0
 
+
 def ath10k_tx_hdr_handler(pevent, trace_seq, event):
     buf = event['data'].data
 
     pktlog_tx_frm_hdr(buf[0:])
+
 
 def register(pevent):
 
