@@ -102,6 +102,16 @@ class BoardContainer:
         return buf[:offset]
 
     def pack_boards(self, mapping):
+        names = []
+
+        # validate mapping
+        for board in mapping:
+            for name in board['names']:
+                if name in names:
+                    print 'Warning: duplicate board name: %s' % (name)
+
+                names.append(name)
+
         for board in mapping:
             filename = board['data']
             payload = self.create_board(filename, board['names'])
@@ -139,6 +149,7 @@ class BoardContainer:
 
         offset = 0
         self.boards = []
+        self.board_names = []
 
         fmt = '<%dsb' % (len(ATH10K_BOARD_SIGNATURE))
         (signature, null) = struct.unpack_from(fmt, self.buf, offset)
@@ -187,6 +198,12 @@ class BoardContainer:
                     fmt = '<%ds' % board_ie_len
                     (name, ) = struct.unpack_from(fmt, self.buf, offset)
                     board['names'].append(name)
+
+                    if name in self.board_names:
+                        print 'Warning: duplicate board name: %s' % (name)
+
+                    self.board_names.append(name)
+
                 elif board_ie_id == ATH10K_BD_IE_BOARD_DATA:
                     fmt = '<%ds' % board_ie_len
                     (board_data, ) = struct.unpack_from(fmt, self.buf, offset)
@@ -297,25 +314,27 @@ def cmd_diff(options, args):
     (temp2_fd, temp2_pathname) = tempfile.mkstemp()
     os.write(temp2_fd, container2.get_summary(sort=True))
 
-    # '--less-mode' and '--auto-page' would be nice when running on
-    # terminal but don't know how to get the control character
-    # through. For terminal detection sys.stdout.isatty() can be used.
-    cmd = ['wdiff', temp1_pathname, temp2_pathname]
+    # this function is used both with --diff and --diffstat
+    if options.diff:
+        # '--less-mode' and '--auto-page' would be nice when running on
+        # terminal but don't know how to get the control character
+        # through. For terminal detection sys.stdout.isatty() can be used.
+        cmd = ['wdiff', temp1_pathname, temp2_pathname]
 
-    # wdiff is braindead and returns 1 in a succesfull case
-    try:
-        output = subprocess.check_output(cmd)
-    except subprocess.CalledProcessError as e:
-        if e.returncode == 1:
-            output = e.output
-        else:
-            print 'Failed to run wdiff: %d\n%s' % (e.returncode, e.output)
+        # wdiff is braindead and returns 1 in a succesfull case
+        try:
+            output = subprocess.check_output(cmd)
+        except subprocess.CalledProcessError as e:
+            if e.returncode == 1:
+                output = e.output
+            else:
+                print 'Failed to run wdiff: %d\n%s' % (e.returncode, e.output)
+                return 1
+        except OSError as e:
+            print 'Failed to run wdiff: %s' % (e)
             return 1
-    except OSError as e:
-        print 'Failed to run wdiff: %s' % (e)
-        return 1
 
-    print output
+        print output
 
     # create simple statistics about changes in board images
 
@@ -352,9 +371,9 @@ def cmd_diff(options, args):
     print 'Deleted:\n%s' % ('\n'.join(deleted_boards.keys()))
 
     print '%d board image(s) added, %d changed, %d deleted, %d in total' % (len(new_boards),
-                                                                         len(changed_boards),
-                                                                         len(deleted_boards),
-                                                                         len(container2.boards))
+                                                                            len(changed_boards),
+                                                                            len(deleted_boards),
+                                                                            len(container2.boards))
 
     os.close(temp1_fd)
     os.close(temp2_fd)
@@ -401,6 +420,8 @@ def main():
                       help='show all details about the file')
     parser.add_option("--diff", action="store_true",
                       help='Show differences between two files')
+    parser.add_option("--diffstat", action="store_true",
+                      help='Show a summary of differences between two files')
     parser.add_option("-o", "--output", action="store", type="string",
                       dest="output", help='Name of output file')
 
@@ -417,6 +438,8 @@ def main():
     elif options.info:
         return cmd_info(options, args)
     elif options.diff:
+        return cmd_diff(options, args)
+    elif options.diffstat:
         return cmd_diff(options, args)
     else:
         return usage()
