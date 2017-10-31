@@ -60,7 +60,8 @@ ATH10K_FW_FEATURE_PEER_FLOW_CONTROL = 13
 ATH10K_FW_FEATURE_BTCOEX_PARAM = 14
 ATH10K_FW_FEATURE_SKIP_NULL_FUNC_WAR = 15
 ATH10K_FW_FEATURE_ALLOWS_MESH_BCAST = 16
-ATH10K_FW_FEATURE_MAX = 17
+ATH10K_FW_FEATURE_NO_PS = 17
+ATH10K_FW_FEATURE_MAX = 18
 
 feature_map = {
     'ext-wmi-mgmt-rx': ATH10K_FW_FEATURE_EXT_WMI_MGMT_RX,
@@ -81,7 +82,8 @@ feature_map = {
     'btcoex-param': ATH10K_FW_FEATURE_BTCOEX_PARAM,
     'skip-null-func-war': ATH10K_FW_FEATURE_SKIP_NULL_FUNC_WAR,
     'allows-mesh-bcast': ATH10K_FW_FEATURE_ALLOWS_MESH_BCAST,
-    }
+    'no-ps': ATH10K_FW_FEATURE_NO_PS,
+}
 
 # from enum ath10k_fw_wmi_op_version in ath10k/hw.h
 ATH10K_FW_WMI_OP_VERSION_UNSET = 0
@@ -100,7 +102,7 @@ wmi_op_version_map = {
     'tlv': ATH10K_FW_WMI_OP_VERSION_TLV,
     '10.2.4': ATH10K_FW_WMI_OP_VERSION_10_2_4,
     '10.4': ATH10K_FW_WMI_OP_VERSION_10_4,
-    }
+}
 
 
 # from enum ath10k_fw_wmi_op_version in ath10k/hw.h
@@ -116,7 +118,7 @@ htt_op_version_map = {
     '10.1': ATH10K_FW_HTT_OP_VERSION_10_1,
     'tlv': ATH10K_FW_HTT_OP_VERSION_TLV,
     '10.4': ATH10K_FW_HTT_OP_VERSION_10_4,
-    }
+}
 
 ETHTOOL_FWVERS_LEN = 32
 
@@ -129,7 +131,7 @@ class FWEncoderError(Exception):
 
 
 def get_output_name(fw_api=None):
-    if fw_api != None:
+    if fw_api is not None:
         api = fw_api
     else:
         api = DEFAULT_FW_API_VERSION
@@ -174,8 +176,8 @@ class FirmwareContainer:
     def add_bitmap(self, ie, enabled, maximum):
 
         if (max(enabled) >= maximum):
-            logger.error("bitmap %d out of maximum (%d >= %d)" % \
-                              (ie, max(enabled), maximum))
+            logger.error("bitmap %d out of maximum (%d >= %d)" %
+                         (ie, max(enabled), maximum))
             return
 
         bytes = [0] * maximum
@@ -376,7 +378,7 @@ class Ath10kFirmwareContainer(object):
     def get_features(self):
         s = ""
 
-        if self.features_bitmap == None:
+        if self.features_bitmap is None:
             return None
 
         for capa in self.features_bitmap:
@@ -414,11 +416,11 @@ class Ath10kFirmwareContainer(object):
         return self.timestamp
 
     def get_timestamp_as_iso8601(self):
-        if self.timestamp == None:
+        if self.timestamp is None:
             return None
 
         return time.strftime('%Y-%m-%d %H:%M:%S',
-                             time.localtime(self.timestamp))
+                             time.gmtime(self.timestamp))
 
     def set_fw_version(self, fw_version):
         self.fw_version = fw_version
@@ -817,7 +819,7 @@ def main():
                            'this container file')
     parser.add_option('--dump', action='store_true', dest='dump',
                       help='Same as --dump-cmdline '
-                          '(for backwards compatibility)')
+                      '(for backwards compatibility)')
     parser.add_option("-e", "--extract", action="store_true", dest="extract",
                       help='Extract binary files from the container file '
                            'and dump cmdline as well')
@@ -873,7 +875,7 @@ def main():
     parser.add_option('--show-timestamp', action='store_true',
                       dest='show_timestamp',
                       help='Show timestamp in --dump-cmdline action. '
-                        'It is not shown by default so that the timestamp would be correct')
+                      'It is not shown by default so that the timestamp would be correct')
     parser.add_option('-d', '--debug', action='store_true', dest='debug',
                       help='Enable debug messages')
 
