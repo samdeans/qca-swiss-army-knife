@@ -1,6 +1,7 @@
 #!/usr/bin/python
 #
 # Copyright (c) 2016 Qualcomm Atheros, Inc.
+# Copyright (c) 2018, The Linux Foundation. All rights reserved.
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -28,6 +29,10 @@ import email
 # global variables
 logger = None
 blacklist = False
+
+BRANCH_DEFAULT_PRIORITY = 1000
+BRANCH_PRIORITY_FILE = '.priority'
+WHENCE_FILE = 'WHENCE'
 
 FIRMWARE_BLACKLIST = [
     '999.999.0.636',
@@ -69,7 +74,7 @@ class Hardware():
 @functools.total_ordering
 class FirmwareBranch():
     def __eq__(self, other):
-        return self.name == other.name
+        return self.priority == other.priority and self.name == other.name
 
     def __lt__(self, other):
         # '.' is always of the lower priority
@@ -79,6 +84,9 @@ class FirmwareBranch():
         if other.name == '.':
             return False
 
+        if self.priority != other.priority:
+            return self.priority < other.priority
+
         return self.name < other.name
 
     def __repr__(self):
@@ -87,9 +95,22 @@ class FirmwareBranch():
     def __str__(self):
         return 'FirmwareBranch(\'%s\'): %s' % (self.name, sorted(self.firmwares))
 
-    def __init__(self, name):
+    def __init__(self, name, path=None):
         self.name = name
         self.firmwares = []
+        self.priority = BRANCH_DEFAULT_PRIORITY
+
+        if path:
+            priority_path = os.path.join(path, BRANCH_PRIORITY_FILE)
+            if os.path.isfile(priority_path):
+                try:
+                    f = open(priority_path, 'r')
+                    buf = f.read()
+                    f.close()
+
+                    self.priority = int(buf)
+                except Exception as e:
+                    print 'Failed to read %s: %s' % (priority_path, e)
 
 
 class BoardFile():
@@ -265,6 +286,9 @@ def scan_dir(path):
         if f.startswith('notice.txt'):
             continue
 
+        if f == BRANCH_PRIORITY_FILE:
+            continue
+
         logger.warning('Unknown file: %s' % (f_path))
 
     return fw_list, bd_list
@@ -283,7 +307,7 @@ def scan_hw_ver(hw):
             continue
 
         logger.debug('Found firmware branch: %s' % (fw_branch))
-        fb = FirmwareBranch(fw_branch)
+        fb = FirmwareBranch(fw_branch, fw_branch_path)
         hw.firmware_branches.append(fb)
 
         (fw, bd) = scan_dir(fw_branch_path)
@@ -377,6 +401,54 @@ def get_board_crc32(path):
 # print indent
 def pi(level, msg):
     print '%s%s' % (level * '\t', msg)
+
+
+def whence_update(linux_firmware, firmware_path, version):
+    f = open(os.path.join(linux_firmware, WHENCE_FILE), 'r')
+    buf = f.read()
+    f.close()
+
+    pattern = r'(File: %s\nVersion: ).*\n' % (firmware_path)
+
+    # \g<1> is same as \1 but needed to separate from the version string
+    replace = r'\g<1>%s\n' % (version)
+
+    (buf, sub_count) = re.subn(pattern, replace, buf, flags=re.MULTILINE)
+
+    if sub_count != 1:
+        print 'Failed to update %s to WHENCE: %d' % (firmware_path, sub_count)
+        return
+
+    f = open(os.path.join(linux_firmware, WHENCE_FILE), 'w')
+    f.write(buf)
+    f.close()
+
+
+def whence_add(linux_firmware, firmware_path, version, license_path=None):
+    f = open(os.path.join(linux_firmware, WHENCE_FILE), 'r')
+    buf = f.read()
+    f.close()
+
+    pattern = r'(Driver: ath10k.*?\n\n.*?)\n\n'
+
+    # \g<1> is same as \1 but needed to separate from the version string
+    replace = r'\g<1>\nFile: %s\n' % (firmware_path)
+    replace += r'Version: %s\n' % (version)
+
+    if license_path is not None:
+        replace += r'Licence: %s\n' % (license_path)
+
+    replace += r'\n'
+
+    (buf, sub_count) = re.subn(pattern, replace, buf, flags=re.MULTILINE | re.DOTALL)
+
+    if sub_count != 1:
+        print 'Failed to add %s to WHENCE: %d' % (firmware_path, sub_count)
+        return
+
+    f = open(os.path.join(linux_firmware, WHENCE_FILE), 'w')
+    f.write(buf)
+    f.close()
 
 
 def git_commit(args, msg, repodir, files):
@@ -558,12 +630,25 @@ def cmd_install(args):
             logger.info('Installing %s (%s)' % (dest, fw.fw_ver))
             destpath = install_file(args, fw.path, installdir, dest)
             installed.append(destpath)
+            firmware_path = os.path.join('ath10k', dest)
 
             if fw.notice_path:
                 dest = os.path.join(destdir, fw.get_notice_filename())
                 logger.info('Installing %s (%s)' % (dest, fw.fw_ver))
                 destpath = install_file(args, fw.notice_path, installdir, dest)
                 installed.append(destpath)
+                notice_path = os.path.join('ath10k', dest)
+            else:
+                notice_path = None
+
+            if action == 'update':
+                # updating an existing firmware file
+                whence_update(linux_firmware, firmware_path, fw.fw_ver)
+            else:
+                # adding a new firmware file
+                whence_add(linux_firmware, firmware_path, fw.fw_ver, notice_path)
+
+            installed.append(WHENCE_FILE)
 
             # "ath10k: QCA9888 hw2.0: update firmware-5.bin to 10.4-3.5.1-00035"
             log = 'ath10k: %s: %s %s to %s' % (hw.name,
@@ -589,6 +674,9 @@ def cmd_install(args):
                 logger.info('Installing %s' % (bd.path))
                 destpath = install_file(args, bd.path, installdir, bd.path)
                 installed.append(destpath)
+
+                # TODO: update WHENCE file when adding a new board
+                # file to linux-firmware
 
                 log = 'ath10k: %s: %s %s' % (hw.name,
                                              action,
