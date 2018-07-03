@@ -1,6 +1,7 @@
 #!/usr/bin/python
 #
 # Copyright (c) 2015 Qualcomm Atheros, Inc.
+# Copyright (c) 2018, The Linux Foundation. All rights reserved.
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -17,18 +18,24 @@
 
 import struct
 import ctypes
-import sys
 import os.path
-from optparse import OptionParser
+import argparse
 import json
 import binascii
 import hashlib
 import tempfile
 import subprocess
+import logging
+import sys
+import shutil
 
 MAX_BUF_LEN = 2000000
-ATH10K_BOARD_SIGNATURE = "QCA-ATH10K-BOARD"
 
+# the signature length also includes null byte and padding
+ATH10K_BOARD_SIGNATURE = "QCA-ATH10K-BOARD"
+ATH10K_BOARD_SIGNATURE_LEN = 20
+
+PADDING_MAGIC = 0x6d
 DEFAULT_BD_API = 2
 DEFAULT_BOARD_FILE = 'board-%d.bin' % DEFAULT_BD_API
 DEFAULT_JSON_FILE = 'board-%d.json' % DEFAULT_BD_API
@@ -54,7 +61,7 @@ def add_ie(buf, offset, id, value):
     padding = ctypes.create_string_buffer(padding_len)
 
     for i in range(padding_len):
-        struct.pack_into('<B', padding, i, 0x6d)
+        struct.pack_into('<B', padding, i, PADDING_MAGIC)
 
     fmt = '<2i%ds%ds' % (len(value), padding_len)
     struct.pack_into(fmt, buf, offset, id, len(value), value, padding.raw)
@@ -77,56 +84,185 @@ def pretty_array_str(array):
     return '\',\''.join(array)
 
 
+class BoardName():
+    @staticmethod
+    def parse_ie(buf, offset, length):
+        self = BoardName()
+        fmt = '<%ds' % length
+        (self.name, ) = struct.unpack_from(fmt, buf, offset)
+
+        logging.debug('BoardName.parse_ie(): offset %d length %d self %s' %
+                      (offset, length, self))
+
+        return self
+
+    def add_to_buf(self, buf, offset):
+        return add_ie(buf, offset, ATH10K_BD_IE_BOARD_NAME, str(self.name))
+
+    def __eq__(self, other):
+        return self.name == other.name
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return 'BoardName(%s)' % self.name
+
+    def __init__(self, name=None):
+        self.name = name
+
+
+class BoardData():
+    @staticmethod
+    def parse_ie(buf, offset, length):
+        self = BoardData()
+        fmt = '<%ds' % length
+        (self.data, ) = struct.unpack_from(fmt, buf, offset)
+
+        logging.debug('BoardData.parse_ie(): offset %d length %d self %s' %
+                      (offset, length, self))
+
+        return self
+
+    def add_to_buf(self, buf, offset):
+        return add_ie(buf, offset, ATH10K_BD_IE_BOARD_DATA, self.data)
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        if self.data is not None:
+            s = '%d B' % (len(self.data))
+        else:
+            s = 'n/a'
+
+        return 'BoardData(%s)' % (s)
+
+    def __init__(self, data=None):
+        self.data = data
+
+
+class Board():
+    @staticmethod
+    def parse_ie(buf, offset, length):
+        logging.debug('Board.parse_ie(): offset %d length %d' % (offset, length))
+
+        self = Board()
+
+        # looping board IEs
+        while length > 0:
+            (ie_id, ie_len) = struct.unpack_from('<2i', buf, offset)
+
+            logging.debug('Board.parse_ie(): found ie_id %d ie_len %d offset %d length %d' %
+                          (ie_id, ie_len, offset, length))
+
+            if TYPE_LENGTH_SIZE + ie_len > length:
+                raise Exception('Error: ie_len too big (%d > %d)' % (ie_len,
+                                                                     length))
+
+            offset += TYPE_LENGTH_SIZE
+            length -= TYPE_LENGTH_SIZE
+
+            if ie_id == ATH10K_BD_IE_BOARD_NAME:
+                self.names.append(BoardName.parse_ie(buf, offset, ie_len))
+            elif ie_id == ATH10K_BD_IE_BOARD_DATA:
+                self.data = BoardData.parse_ie(buf, offset, ie_len)
+
+            offset += ie_len + padding_needed(ie_len)
+            length -= ie_len + padding_needed(ie_len)
+
+        return self
+
+    def add_to_buf(self, buf, offset):
+        # store position ie header of this element
+        ie_offset = offset
+
+        offset += TYPE_LENGTH_SIZE
+
+        for name in self.names:
+            offset = name.add_to_buf(buf, offset)
+
+        offset = self.data.add_to_buf(buf, offset)
+
+        # write ie header as now we know the full length
+        ie_len = offset - ie_offset - TYPE_LENGTH_SIZE
+        struct.pack_into('<2i', buf, ie_offset, ATH10K_BD_IE_BOARD, ie_len)
+
+        return offset
+
+    def get_names_as_str(self):
+        names = []
+        for boardname in self.names:
+            names.append(boardname.name)
+
+        return names
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        names = []
+        for boardname in self.names:
+            names.append(str(boardname))
+
+        return 'Board(%s, %s)' % (','.join(names), self.data)
+
+    def __init__(self):
+        self.data = None
+        self.names = []
+
+
 class BoardContainer:
 
-    def create_board(self, filename, names):
-        if os.path.getsize(filename) > MAX_BUF_LEN:
-            print "file %s is too large, maximum size is %d" % (filename,
-                                                                MAX_BUF_LEN)
-            return -1
-
-        buf = ctypes.create_string_buffer(MAX_BUF_LEN)
-        offset = 0
-
-        # add name IEs
+    def add_board(self, data, names):
+        boardnames = []
         for name in names:
-            offset = add_ie(buf, offset, ATH10K_BD_IE_BOARD_NAME, str(name))
+            boardnames.append(BoardName(name))
 
-        # add data IEs
-        f = open(filename, 'rb')
-        data = f.read()
-        offset = add_ie(buf, offset, ATH10K_BD_IE_BOARD_DATA, data)
+        board = Board()
+        board.data = BoardData(data)
+        board.names = boardnames
+
+        self.boards.append(board)
+
+    @staticmethod
+    def open_json(filename):
+        self = BoardContainer()
+
+        if not os.path.exists(filename):
+            print 'mapping file %s not found' % (filename)
+            return
+
+        f = open(filename, 'r')
+        mapping = json.loads(f.read())
         f.close()
 
-        # return the full IE including padding
-        return buf[:offset]
+        for b in mapping:
+            board_filename = b['data']
+            f = open(board_filename, 'rb')
+            data = f.read()
+            f.close()
 
-    def pack_boards(self, mapping):
-        names = []
+            self.add_board(data, b['names'])
 
-        # validate mapping
-        for board in mapping:
-            for name in board['names']:
-                if name in names:
-                    print 'Warning: duplicate board name: %s' % (name)
+        return self
 
-                names.append(name)
+    def validate(self):
+        allnames = []
 
-        for board in mapping:
-            filename = board['data']
-            payload = self.create_board(filename, board['names'])
+        for board in self.boards:
+            for name in board.names:
+                if name in allnames:
+                    # TODO: Find a better way to report problems,
+                    # maybe return a list of strings? Or use an
+                    # exception?
+                    print 'Warning: duplicate board name: %s' % (name.name)
+                    return
 
-            self.buf_len = add_ie(self.buf, self.buf_len,
-                                  ATH10K_BD_IE_BOARD, payload)
+                allnames.append(name)
 
-    def create_single_bin(self, name):
-        fd = open(name, 'wb')
-        fd.write(self.buf.raw[0:self.buf_len])
-        fd.close()
-        print "board binary file '%s' is created" % name
-
-    def add_signature(self, signature):
-        signature = signature + '\0'
+    def _add_signature(self, buf, offset):
+        signature = ATH10K_BOARD_SIGNATURE + '\0'
         length = len(signature)
         pad_len = padding_needed(length)
         length = length + pad_len
@@ -134,98 +270,98 @@ class BoardContainer:
         padding = ctypes.create_string_buffer(pad_len)
 
         for i in range(pad_len):
-            struct.pack_into('<B', padding, i, 0x6d)
+            struct.pack_into('<B', padding, i, PADDING_MAGIC)
 
         fmt = '<%ds%ds' % (len(signature), pad_len)
-        struct.pack_into(fmt, self.buf, self.buf_len, signature, padding.raw)
-        self.buf_len = self.buf_len + length
-        self.sig_len = length  # signature length includes null byte+padding
+        struct.pack_into(fmt, buf, offset, signature, padding.raw)
+        offset += length
 
-    def open(self, name):
+        # make sure ATH10K_BOARD_SIGNATURE_LEN is correct
+        assert(ATH10K_BOARD_SIGNATURE_LEN == length)
+
+        return offset
+
+    @staticmethod
+    def open(name):
+        self = BoardContainer()
+
         f = open(name, 'rb')
-        self.buf = f.read()
+        buf = f.read()
         f.close()
-        self.buf_len = len(self.buf)
+        buf_len = len(buf)
+
+        logging.debug('BoardContainer.open(): name %s' % (name))
 
         offset = 0
-        self.boards = []
-        self.board_names = []
 
         fmt = '<%dsb' % (len(ATH10K_BOARD_SIGNATURE))
-        (signature, null) = struct.unpack_from(fmt, self.buf, offset)
+        (signature, null) = struct.unpack_from(fmt, buf, offset)
 
         if signature != ATH10K_BOARD_SIGNATURE or null != 0:
             print "invalid signature found in %s" % name
             return 1
 
-        offset = offset + self.sig_len
-        i = 0
-
-        # FIXME: this supports only ATH10K_BD_IE_BOARD for now, needs
-        # to refactored to support more IEs
+        offset += ATH10K_BOARD_SIGNATURE_LEN
 
         # looping main IEs
-        while offset < self.buf_len:
-            (ie_id, ie_len) = struct.unpack_from('<2i', self.buf, offset)
-            offset = offset + TYPE_LENGTH_SIZE
+        while offset < buf_len:
+            (ie_id, ie_len) = struct.unpack_from('<2i', buf, offset)
+            logging.debug('BoardContainer.open(): found offset %d ie_id %d ie_len %d' %
+                          (offset, ie_id, ie_len))
 
-            if offset + ie_len > self.buf_len:
+            offset += TYPE_LENGTH_SIZE
+
+            if offset + ie_len > buf_len:
                 print 'Error: Buffer too short (%d + %d > %d)' % (offset,
                                                                   ie_len,
-                                                                  self.buf_len)
+                                                                  buf_len)
                 return 1
 
-            # skip if an unknown IE
-            if ie_id != ATH10K_BD_IE_BOARD:
-                offset = offset + ie_len + padding_needed(ie_len)
-                continue
+            if ie_id == ATH10K_BD_IE_BOARD:
+                self.boards.append(Board.parse_ie(buf, offset, ie_len))
 
-            board = {}
-            board['names'] = []
+            offset += ie_len + padding_needed(ie_len)
 
-            # looping board IEs
-            while ie_len > 0:
-                (board_ie_id, board_ie_len) = struct.unpack_from('<2i',
-                                                                 self.buf,
-                                                                 offset)
-                offset = offset + TYPE_LENGTH_SIZE
+        self.validate()
 
-                if board_ie_len > ie_len:
-                    print 'Error: board_ie_len too big (%d > %d)' % (board_ie_len, ie_len)
-                    return 1
+        return self
 
-                if board_ie_id == ATH10K_BD_IE_BOARD_NAME:
-                    fmt = '<%ds' % board_ie_len
-                    (name, ) = struct.unpack_from(fmt, self.buf, offset)
-                    board['names'].append(name)
+    def write(self, name):
+        (buf, buf_len) = self.get_bin()
 
-                    if name in self.board_names:
-                        print 'Warning: duplicate board name: %s' % (name)
+        fd = open(name, 'wb')
+        fd.write(buf.raw[0:buf_len])
+        fd.close()
 
-                    self.board_names.append(name)
+        self.validate()
 
-                elif board_ie_id == ATH10K_BD_IE_BOARD_DATA:
-                    fmt = '<%ds' % board_ie_len
-                    (board_data, ) = struct.unpack_from(fmt, self.buf, offset)
-                    board['data'] = board_data
+        print "board binary file '%s' is created" % name
 
-                offset = offset + board_ie_len + padding_needed(board_ie_len)
-                ie_len = ie_len - TYPE_LENGTH_SIZE - board_ie_len - padding_needed(board_ie_len)
+    def get_bin(self):
+        buf = ctypes.create_string_buffer(MAX_BUF_LEN)
+        offset = 0
 
-            self.boards.append(board)
-            i = i + 1
+        offset = self._add_signature(buf, offset)
+
+        for board in self.boards:
+            offset = board.add_to_buf(buf, offset)
+
+        # returns buffer and it's length
+        return buf, offset
 
     def get_summary(self, sort=False):
+        (buf, buf_len) = self.get_bin()
+
         s = ''
 
-        s += 'FileSize: %d\n' % (self.buf_len)
-        s += 'FileCRC32: %08x\n' % (_crc32(self.buf))
-        s += 'FileMD5: %s\n' % (hashlib.md5(self.buf).hexdigest())
+        s += 'FileSize: %d\n' % (buf_len)
+        s += 'FileCRC32: %08x\n' % (_crc32(buf[0:buf_len]))
+        s += 'FileMD5: %s\n' % (hashlib.md5(buf[0:buf_len]).hexdigest())
 
         boards = self.boards
 
         if sort:
-            boards = sorted(boards, key=lambda board: board['names'])
+            boards = sorted(boards, key=lambda board: board.get_names_as_str())
 
         index = 0
         for board in boards:
@@ -234,45 +370,36 @@ class BoardContainer:
             else:
                 index_s = ''
 
-            s += 'BoardNames%s: \'%s\'\n' % (index_s, pretty_array_str(board['names']))
-            s += 'BoardLength%s: %d\n' % (index_s, len(board['data']))
-            s += 'BoardCRC32%s: %08x\n' % (index_s, _crc32(board['data']))
-            s += 'BoardMD5%s: %s\n' % (index_s, hashlib.md5(board['data']).hexdigest())
+            s += 'BoardNames%s: \'%s\'\n' % (index_s, pretty_array_str(board.get_names_as_str()))
+            s += 'BoardLength%s: %d\n' % (index_s, len(board.data.data))
+            s += 'BoardCRC32%s: %08x\n' % (index_s, _crc32(board.data.data))
+            s += 'BoardMD5%s: %s\n' % (index_s, hashlib.md5(board.data.data).hexdigest())
             index += 1
 
         return s
 
     def __init__(self):
-        self.buf = ctypes.create_string_buffer(MAX_BUF_LEN)
-        self.buf_len = 0
-
-        self.add_signature(ATH10K_BOARD_SIGNATURE)
+        self.boards = []
 
 
-def extract(options, args):
-    if len(args) != 1:
-        print "Error: extract option requires input filename\n"
-        usage()
-        return 1
-
-    cont = BoardContainer()
-    cont.open(args[0])
+def cmd_extract(args):
+    cont = BoardContainer().open(args.extract)
 
     mapping = []
 
     for board in cont.boards:
-        filename = board['names'][0] + '.bin'
+        filename = board.names[0].name + '.bin'
 
         b = {}
-        b['names'] = board['names']
+        b['names'] = board.get_names_as_str()
         b['data'] = filename
         mapping.append(b)
 
         f = open(filename, 'w')
-        f.write(board['data'])
+        f.write(board.data.data)
         f.close()
 
-        print "%s created size: %d" % (filename, len(board['data']))
+        print "%s created size: %d" % (filename, len(board.data.data))
 
     filename = DEFAULT_JSON_FILE
     f = open(filename, 'w')
@@ -282,40 +409,38 @@ def extract(options, args):
     print "%s created" % (filename)
 
 
-def cmd_info(options, args):
-    if len(args) != 1:
-        print "Error: extract option requires input filename\n"
-        usage()
-        return 1
+def cmd_info(args):
+    filename = args.info
 
-    filename = args[0]
-
-    cont = BoardContainer()
-    cont.open(filename)
+    cont = BoardContainer().open(filename)
 
     print cont.get_summary()
 
 
-def cmd_diff(options, args):
-    if len(args) != 2:
-        print 'Usage: ath10k-bdencoder --diff FILE FILE'
-        return 1
+def cmd_diff(args):
+    if args.diff:
+        filename1 = args.diff[0]
+        filename2 = args.diff[1]
+    else:
+        filename1 = args.diffstat[0]
+        filename2 = args.diffstat[1]
 
-    filename1 = args[0]
-    filename2 = args[1]
+    print diff_boardfiles(filename1, filename2, args.diff)
 
-    container1 = BoardContainer()
-    container1.open(filename1)
+
+def diff_boardfiles(filename1, filename2, diff):
+    result = ''
+
+    container1 = BoardContainer().open(filename1)
     (temp1_fd, temp1_pathname) = tempfile.mkstemp()
     os.write(temp1_fd, container1.get_summary(sort=True))
 
-    container2 = BoardContainer()
-    container2.open(filename2)
+    container2 = BoardContainer().open(filename2)
     (temp2_fd, temp2_pathname) = tempfile.mkstemp()
     os.write(temp2_fd, container2.get_summary(sort=True))
 
     # this function is used both with --diff and --diffstat
-    if options.diff:
+    if diff:
         # '--less-mode' and '--auto-page' would be nice when running on
         # terminal but don't know how to get the control character
         # through. For terminal detection sys.stdout.isatty() can be used.
@@ -334,7 +459,7 @@ def cmd_diff(options, args):
             print 'Failed to run wdiff: %s' % (e)
             return 1
 
-        print output
+        result += '%s\n' % (output)
 
     # create simple statistics about changes in board images
 
@@ -344,12 +469,12 @@ def cmd_diff(options, args):
 
     for board in container2.boards:
         # convert the list to a string
-        s = pretty_array_str(board['names'])
+        s = pretty_array_str(board.get_names_as_str())
         new_boards[s] = board
 
     for board in container1.boards:
         # convert the list to a string
-        names = pretty_array_str(board['names'])
+        names = pretty_array_str(board.get_names_as_str())
 
         if names not in new_boards:
             # board image has been deleted
@@ -359,90 +484,130 @@ def cmd_diff(options, args):
         board2 = new_boards[names]
         del new_boards[names]
 
-        if board['data'] == board2['data']:
+        if board.data.data == board2.data.data:
             # board image hasn't changed
             continue
 
         # board image has changed
         changed_boards[names] = board2
 
-    print 'New:\n%s\n' % ('\n'.join(new_boards.keys()))
-    print 'Changed:\n%s\n' % ('\n'.join(changed_boards.keys()))
-    print 'Deleted:\n%s' % ('\n'.join(deleted_boards.keys()))
+    result += 'New:\n%s\n\n' % ('\n'.join(new_boards.keys()))
+    result += 'Changed:\n%s\n\n' % ('\n'.join(changed_boards.keys()))
+    result += 'Deleted:\n%s\n' % ('\n'.join(deleted_boards.keys()))
 
-    print '%d board image(s) added, %d changed, %d deleted, %d in total' % (len(new_boards),
-                                                                            len(changed_boards),
-                                                                            len(deleted_boards),
-                                                                            len(container2.boards))
+    result += '%d board image(s) added, %d changed, %d deleted, %d in total' % (len(new_boards),
+                                                                                len(changed_boards),
+                                                                                len(deleted_boards),
+                                                                                len(container2.boards))
 
     os.close(temp1_fd)
     os.close(temp2_fd)
 
+    return result
 
-def create(options):
 
-    mapping_file = options.create
+def cmd_create(args):
+    mapping_file = args.create
 
-    if options.output:
-        output = options.output
+    if args.output:
+        output = args.output
     else:
         output = DEFAULT_BOARD_FILE
 
-    cont = BoardContainer()
+    cont = BoardContainer.open_json(mapping_file)
+    cont.write(output)
 
-    if not os.path.exists(mapping_file):
-        print 'mapping file %s not found' % (mapping_file)
-        return
 
-    f = open(mapping_file, 'r')
-    mapping = json.loads(f.read())
-    cont.pack_boards(mapping)
+def cmd_add_board(args):
+    if len(args.add_board) < 3:
+        print 'error: --add-board requires 3 or more arguments, only %d given' % (len(args.add_board))
+        sys.exit(1)
+
+    board_filename = args.add_board[0]
+    new_filename = args.add_board[1]
+    new_names = args.add_board[2:]
+
+    f = open(new_filename, 'r')
+    new_data = f.read()
     f.close()
 
-    cont.create_single_bin(output)
+    # copy the original file for diff
+    (temp_fd, temp_pathname) = tempfile.mkstemp()
+    shutil.copyfile(board_filename, temp_pathname)
 
+    container = BoardContainer.open(board_filename)
+    container.add_board(new_data, new_names)
+    container.write(board_filename)
 
-def usage():
-    print "Usage:"
-    print "ath10k-board-encoder <-c or --create> <optional -o or --output> <FILE>"
-    print "ath10k-board-encoder <-e or --extract> <FILE>"
+    print diff_boardfiles(temp_pathname, board_filename, False)
+
+    os.remove(temp_pathname)
 
 
 def main():
-    parser = OptionParser()
+    description = '''ath10k board-N.bin files manegement tool
 
-    parser.add_option("-c", "--create", dest="create",
-                      help='Create single board binary for ath10k from '
-                           'mapping file')
-    parser.add_option("-e", "--extract", action="store_true", dest="extract",
-                      help='extract board file from encoded single binary')
-    parser.add_option("-i", "--info", action="store_true", dest="info",
-                      help='show all details about the file')
-    parser.add_option("--diff", action="store_true",
-                      help='Show differences between two files')
-    parser.add_option("--diffstat", action="store_true",
-                      help='Show a summary of differences between two files')
-    parser.add_option("-o", "--output", action="store", type="string",
-                      dest="output", help='Name of output file')
+ath10k-bdencoder is for creating (--create), listing (--info) and
+comparing (--diff, --diffstat) ath10k board-N.bin files. The
+board-N.bin is a container format which can have unlimited number of
+actual board images ("board files"), each image containing one or
+names which ath10k uses to find the correct image.
 
-    (options, args) = parser.parse_args()
+For creating board files you need a mapping file in JSON which
+contains the names and filenames for the actual binary:
 
-    if options.create:
-        try:
-            return create(options)
-        except Exception as e:
-            print 'Create failed: %s' % e
-            sys.exit(2)
-    elif options.extract:
-        return extract(options, args)
-    elif options.info:
-        return cmd_info(options, args)
-    elif options.diff:
-        return cmd_diff(options, args)
-    elif options.diffstat:
-        return cmd_diff(options, args)
-    else:
-        return usage()
+[
+        {"names": ["AAA1", "AAAA2"], "data": "A.bin"},
+        {"names": ["B"], "data": "B.bin"},
+        {"names": ["C"], "data": "C.bin"},
+]
+
+In this example the board-N.bin will contain three board files which
+are read from files named A.bin (using names AAA1 and AAAA2 in the
+board-N.bin file), B.bin (using name B) and C.bin (using name C). You
+can use --extract switch to see examples from real board-N.bin files.
+'''
+
+    parser = argparse.ArgumentParser(description=description,
+                                     formatter_class=argparse.RawTextHelpFormatter)
+
+    cmd_group = parser.add_mutually_exclusive_group(required=True)
+    cmd_group.add_argument("-c", "--create", metavar='JSON_FILE',
+                           help='create board-N.bin from a mapping file in JSON format')
+    cmd_group.add_argument("-e", "--extract", metavar='BOARD_FILE',
+                           help='extract board-N.bin file to a JSON mapping file and individual board files, compatible with the format used with --create command')
+    cmd_group.add_argument("-i", "--info", metavar='BOARD_FILE',
+                           help='show all details about a board-N.bin file')
+    cmd_group.add_argument('-d', '--diff', metavar='BOARD_FILE', nargs=2,
+                           help='show differences between two board-N.bin files')
+    cmd_group.add_argument('-D', '--diffstat', metavar='BOARD_FILE', nargs=2,
+                           help='show a summary of differences between two board-N.bin files')
+    cmd_group.add_argument('-a', '--add-board', metavar='NAME', nargs='+',
+                           help='add a board file to an existing board-N.bin, first argument is the filename of board-N.bin to add to, second is the filename board file (board.bin) to add and then followed by one or more arguments are names used in board-N.bin')
+
+    parser.add_argument('-v', '--verbose', action='store_true',
+                        help='enable verbose (debug) messages')
+    parser.add_argument("-o", "--output", metavar="BOARD_FILE",
+                        help='name of the output file, otherwise the default is: %s' %
+                        (DEFAULT_BOARD_FILE))
+
+    args = parser.parse_args()
+
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG)
+
+    if args.create:
+        return cmd_create(args)
+    elif args.extract:
+        return cmd_extract(args)
+    elif args.info:
+        return cmd_info(args)
+    elif args.diff:
+        return cmd_diff(args)
+    elif args.diffstat:
+        return cmd_diff(args)
+    elif args.add_board:
+        return cmd_add_board(args)
 
 if __name__ == "__main__":
     main()
