@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 #
 # Copyright (c) 2015-2017 Qualcomm Atheros, Inc.
+# Copyright (c) 2018, The Linux Foundation. All rights reserved.
 #
 # Permission to use, copy, modify, and/or distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -30,7 +31,7 @@ import string
 import hashlib
 import distutils.spawn
 
-CHECKPATCH_COMMIT = '46d832f5e2102cce455672c5a0b8cbe97e27fe42'
+CHECKPATCH_COMMIT = '12c253abb9c9d8e01d9365fc8cbde4688731f401'
 
 GIT_URL = 'https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/scripts/checkpatch.pl?id=%s'
 
@@ -63,10 +64,19 @@ CHECKPATCH_IGNORE = ['MSLEEP',
 
                      # TODO: look like valid warnings, investigate
                      'MACRO_ARG_REUSE',
+                     'OPEN_ENDED_LINE',
+                     'FUNCTION_ARGUMENTS',
+                     'CONFIG_DESCRIPTION',
+                     'ASSIGNMENT_CONTINUATIONS',
+                     'UNNECESSARY_PARENTHESES',
 
                      # Not sure if these really useful warnings,
                      # disable for now.
                      'MACRO_ARG_PRECEDENCE',
+
+                     # TODO: ath10k is not converted to use SPDX yet,
+                     # remove this once that's done
+                     'SPDX_LICENSE_TAG',
                      ]
 
 CHECKPATCH_OPTS = ['--strict', '-q', '--terse', '--no-summary',
@@ -160,6 +170,9 @@ def run_sparse(args):
 
 
 def find_tagname(tag_map, filename, lineno):
+    if filename.find('Kconfig') != -1:
+        return None
+
     # we need the tags sorted per linenumber
     sorted_tags = sorted(tag_map[filename], key=lambda tup: tup[0])
 
@@ -203,10 +216,13 @@ def is_filtered(cpwarning):
     return False
 
 
+def get_checkpatch_cmdline():
+    return ['checkpatch.pl'] + CHECKPATCH_OPTS + \
+        ['--ignore', ",".join(CHECKPATCH_IGNORE)]
+
+
 def run_checkpatch_cmd(args, q, tag_map):
-    checkpatch_cmd = ['checkpatch.pl']
-    checkpatch_cmd += CHECKPATCH_OPTS
-    checkpatch_cmd += ['--ignore', ",".join(CHECKPATCH_IGNORE), '-f']
+    checkpatch_cmd = get_checkpatch_cmdline() + ['-f']
 
     while True:
         try:
@@ -279,7 +295,7 @@ def run_checkpatch(args):
             tagname = columns[0]
             line = int(columns[1])
 
-            if f in tag_map:
+            if f not in tag_map:
                 tag_map[f] = []
 
             tag_map[f].append((line, tagname))
@@ -382,9 +398,16 @@ of checkpatch. Download the checkpatch version from the URL below and
 install it somewhere in your $$PATH:
 
 $CHECKPATCH_URL
+
+Alternatively if you want manually run checkpatch with the same
+settings as ath10k-check uses here's the command line:
+
+$CHECKPATCH_CMDLINE
 '''
 
-    epilog = string.Template(s).substitute(CHECKPATCH_URL=checkpatch_url)
+    checkpatch_cmdline = '%s foo.patch' % ' '.join(get_checkpatch_cmdline())
+    epilog = string.Template(s).substitute(CHECKPATCH_URL=checkpatch_url,
+                                           CHECKPATCH_CMDLINE=checkpatch_cmdline)
 
     parser = argparse.ArgumentParser(description=description, epilog=epilog,
                                      formatter_class=argparse.RawTextHelpFormatter)
