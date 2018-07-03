@@ -525,9 +525,10 @@ def parse_htt_stats_tidq(pevent, trace_seq, buf, tlv_length):
         trace_seq.puts("n\t Could not read TIDQ stats from firmware")
     else:
         trace_seq.puts("\n\t Frames queued to h/w Queue\n\t\t")
+        msg_base_len = 2
         for i in range(10):
             l = msg_base_len
-            hdr = struct.unpack("<I", buf[0:l])
+            hdr = struct.unpack("<H", buf[0:l])
             buf = buf[l:]
 
             num_pkts_queued = hdr[0]
@@ -537,7 +538,7 @@ def parse_htt_stats_tidq(pevent, trace_seq, buf, tlv_length):
         trace_seq.puts("\n\t\t\t S/W Queue stats")
         for i in range(20):
             l = msg_base_len
-            hdr = struct.unpack("<I", buf[0:l])
+            hdr = struct.unpack("<H", buf[0:l])
             buf = buf[l:]
 
             tid_sw_qdepth = hdr[0]
@@ -547,7 +548,7 @@ def parse_htt_stats_tidq(pevent, trace_seq, buf, tlv_length):
         trace_seq.puts("\n\t\t\t H/W Queue stats")
         for i in range(20):
             l = msg_base_len
-            hdr = struct.unpack("<I", buf[0:l])
+            hdr = struct.unpack("<H", buf[0:l])
             buf = buf[l:]
 
             tid_hw_qdepth = hdr[0]
