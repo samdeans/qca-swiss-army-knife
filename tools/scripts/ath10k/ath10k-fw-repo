@@ -462,6 +462,17 @@ def git_commit(args, msg, repodir, files):
     subprocess.check_call(cmd)
 
 
+def git_add(args, repodir, files):
+    if not args.commit:
+        # nothing to do
+        return
+
+    cmd = ['git', '-C', repodir, 'add'] + files
+
+    logger.debug('Running: %r' % (cmd))
+    subprocess.check_call(cmd)
+
+
 def cmd_check(args):
     scan_repository('.')
 
@@ -582,6 +593,38 @@ def cmd_get_latest_in_branch(args):
     sys.exit(0)
 
 
+def cmd_get_latest_in_hw(args):
+    # As this command is mostly for scripts to parse, don't show
+    # warnings etc to clutter the output, unless we are debugging of
+    # course.
+    if not args.debug:
+        logger.setLevel(logging.ERROR)
+
+    hws = scan_repository('.')
+
+    args_hw = args.get_latest[0]
+    args_hwver = args.get_latest[1]
+
+    # TODO: hw is always in uppercase and hwver lower case, check that
+    hw_name = '%s %s' % (args_hw, args_hwver)
+
+    if hw_name not in hws:
+        print 'Did not find hardware: %s' % (hw_name)
+        sys.exit(1)
+
+    hw = hws[hw_name]
+
+    fw_branch = sorted(hw.firmware_branches)[-1]
+
+    if len(fw_branch.firmwares) == 0:
+        # no firmware images in this branch, just use return value 0 with no output
+        sys.exit(0)
+
+    print sorted(fw_branch.firmwares)[-1].path
+
+    sys.exit(0)
+
+
 def cmd_install(args):
     global blacklist
 
@@ -647,6 +690,7 @@ def cmd_install(args):
             else:
                 # adding a new firmware file
                 whence_add(linux_firmware, firmware_path, fw.fw_ver, notice_path)
+                git_add(args, linux_firmware, installed)
 
             installed.append(WHENCE_FILE)
 
@@ -718,6 +762,10 @@ def main():
                         metavar=('HW', 'HWVER', 'BRANCH'),
                         help='Show latest firmware version from a firmware branch. Just outputs the version for easy parsing in scripts.')
 
+    parser.add_argument('--get-latest', action='store', nargs=2,
+                        metavar=('HW', 'HWVER'),
+                        help='Show latest firmware version for hardware version. Just outputs the version for easy parsing in scripts.')
+
     args = parser.parse_args()
 
     if args.debug:
@@ -738,6 +786,8 @@ def main():
         cmd_install(args)
     elif args.get_latest_in_branch:
         cmd_get_latest_in_branch(args)
+    elif args.get_latest:
+        cmd_get_latest_in_hw(args)
     else:
         logger.error('No command defined')
         parser.print_usage()
