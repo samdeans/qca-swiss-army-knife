@@ -31,7 +31,7 @@ import string
 import hashlib
 import distutils.spawn
 
-CHECKPATCH_COMMIT = '12c253abb9c9d8e01d9365fc8cbde4688731f401'
+CHECKPATCH_COMMIT = '852d095d16a6298834839f441593f59d58a31978'
 
 GIT_URL = 'https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/plain/scripts/checkpatch.pl?id=%s'
 
@@ -75,12 +75,21 @@ CHECKPATCH_IGNORE = ['MSLEEP',
                      'MACRO_ARG_PRECEDENCE',
 
                      'BOOL_MEMBER',
+
+                     # TODO: ath11k uses volatile for now, fix it
+                     'VOLATILE',
+
+                     # TODO: document all DT usage in ath11k
+                     'UNDOCUMENTED_DT_STRING',
                      ]
 
 CHECKPATCH_OPTS = ['--strict', '-q', '--terse', '--no-summary',
                    '--max-line-length=90', '--show-types']
 
-checkpatch_filter = []
+checkpatch_filter = [
+    ('ath11k_read_simulate_fw_crash', 'LONG_LINE'),
+    ('qmi_wlanfw_respond_mem_req_msg_v01', 'LONG_LINE'),
+]
 
 sparse_filter = [r'warning: dubious: x & !y']
 
@@ -116,7 +125,7 @@ def run_gcc(args):
 
     cmd = ['make', '-k', '-j', str(threads)]
 
-    if args.extra:
+    if not args.no_extra:
         cmd.append('W=1')
 
     cmd.append(DRIVER_DIR)
@@ -430,8 +439,8 @@ $CHECKPATCH_CMDLINE
     parser.add_argument('--fast', action='store_true',
                         help='run only tests which finish in few seconds')
 
-    parser.add_argument('--extra', action='store_true',
-                        help='Run extra checks like W=1')
+    parser.add_argument('--no-extra', action='store_true',
+                        help='Do not run extra checks like W=1')
 
     parser.add_argument('--no-filter', action='store_true',
                         help='Don\'t filter output with regexp: %r' % (FILTER_REGEXP))
