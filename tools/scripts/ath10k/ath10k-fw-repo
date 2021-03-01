@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 # Copyright (c) 2016 Qualcomm Atheros, Inc.
 # Copyright (c) 2018, The Linux Foundation. All rights reserved.
@@ -85,7 +85,10 @@ class FirmwareBranch():
             return False
 
         if self.priority != other.priority:
-            return self.priority < other.priority
+            if self.priority < other.priority:
+                return True
+            else:
+                return False
 
         return self.name < other.name
 
@@ -388,14 +391,14 @@ def install_file(args, src, installdir, dest):
 
 def get_firmware_version(path):
     cmd = ['ath10k-fwencoder', '--info', path]
-    info = subprocess.check_output(cmd)
+    info = subprocess.check_output(cmd, universal_newlines=True)
     msg = email.message_from_string(info)
     return msg['FirmwareVersion']
 
 
 def get_board_crc32(path):
     cmd = ['ath10k-fwencoder', '--crc32', path]
-    return subprocess.check_output(cmd).strip()
+    return subprocess.check_output(cmd, universal_newlines=True).strip()
 
 
 # print indent
