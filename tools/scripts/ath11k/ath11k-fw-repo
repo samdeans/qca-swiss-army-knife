@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 #
 # Copyright (c) 2016 Qualcomm Atheros, Inc.
 # Copyright (c) 2018,2020 The Linux Foundation. All rights reserved.
@@ -33,13 +33,14 @@ BRANCH_DEFAULT_PRIORITY = 1000
 BRANCH_PRIORITY_FILE = '.priority'
 WHENCE_FILE = 'WHENCE'
 NOTICE_FILE = 'Notice.txt'
+NOTICE_FILE_LEN_MIN = 5000
 ATH11K_DIR = 'ath11k'
+TESTING_BRANCH = 'testing'
 
 FIRMWARE_BLACKLIST = [
 ]
 
 BRANCH_BLACKLIST = [
-    'testing',
     'msm',
 ]
 
@@ -77,8 +78,16 @@ class Hardware():
 
 @functools.total_ordering
 class FirmwareBranch():
+    # return the branch name without 'testing/' prefix
+    def get_clean_name(self):
+        if self.testing_branch:
+            return self.name[len(TESTING_BRANCH):]
+
+        return self.name
+
     def __eq__(self, other):
-        return self.priority == other.priority and self.name == other.name
+        return self.priority == other.priority and \
+            self.get_clean_name() == other.get_clean_name()
 
     def __lt__(self, other):
         # '.' is always of the lower priority
@@ -89,9 +98,12 @@ class FirmwareBranch():
             return False
 
         if self.priority != other.priority:
-            return self.priority < other.priority
+            if self.priority < other.priority:
+                return True
+            else:
+                return False
 
-        return self.name < other.name
+        return self.get_clean_name() < other.get_clean_name()
 
     def __repr__(self):
         return self.__str__()
@@ -102,7 +114,16 @@ class FirmwareBranch():
     def __init__(self, name, path=None):
         self.name = name
         self.firmwares = []
-        self.priority = BRANCH_DEFAULT_PRIORITY
+
+        if name.startswith(TESTING_BRANCH):
+            self.testing_branch = True
+
+            # testing branches use lower priority by default so that
+            # they are ordered below normal branches
+            self.priority = 0
+        else:
+            self.testing_branch = False
+            self.priority = BRANCH_DEFAULT_PRIORITY
 
         if path:
             priority_path = os.path.join(path, BRANCH_PRIORITY_FILE)
@@ -276,6 +297,27 @@ class Firmware():
 
             logger.debug('%s: %s' % (self.fw_ver, self.filenames))
 
+            # check notice file
+            if self.notice_filename is None:
+                print('%s: missing %s' % (self.path, NOTICE_FILE))
+                return
+
+            notice_path = os.path.join(self.path, self.notice_filename)
+            f = open(notice_path, 'r')
+            try:
+                buf = f.read()
+            except UnicodeDecodeError as e:
+                print('%s: invalid utf-8: %s' % (notice_path, e))
+                self.notice_filename = None
+                return
+            finally:
+                f.close()
+
+            if len(buf) < NOTICE_FILE_LEN_MIN:
+                print('%s: too short: %d B' % (notice_path, len(buf)))
+                self.notice_filename = None
+                return
+
 
 def scan_branch_dir(path):
     fw_list = []
@@ -311,21 +353,31 @@ def scan_hw_ver(hw):
     files.sort()
 
     for fw_branch in files:
-        fw_branch_path = os.path.join(path, fw_branch)
+        if fw_branch == TESTING_BRANCH:
+            # scan all directories under testing branch, eg. testing/1.2.3.4
+            dirs = os.listdir(os.path.join(path, fw_branch))
+            fw_branches = []
+            for d in dirs:
+                fw_branches.append(os.path.join(TESTING_BRANCH, d))
+        else:
+            fw_branches = [fw_branch]
 
-        if not os.path.isdir(fw_branch_path):
-            continue
+        for fw_branch in fw_branches:
+            fw_branch_path = os.path.join(path, fw_branch)
 
-        if os.path.basename(fw_branch_path) in BRANCH_BLACKLIST:
-            logger.debug('Blacklisted firmware branch: %s' % (fw_branch_path))
-            continue
+            if not os.path.isdir(fw_branch_path):
+                continue
 
-        logger.debug('Found firmware branch: %s' % (fw_branch))
-        fb = FirmwareBranch(fw_branch, fw_branch_path)
-        hw.firmware_branches.append(fb)
+            if os.path.basename(fw_branch_path) in BRANCH_BLACKLIST:
+                logger.debug('Blacklisted firmware branch: %s' % (fw_branch_path))
+                continue
 
-        fw = scan_branch_dir(fw_branch_path)
-        fb.firmwares += fw
+            logger.debug('Found firmware branch: %s' % (fw_branch))
+            fb = FirmwareBranch(fw_branch, fw_branch_path)
+            hw.firmware_branches.append(fb)
+
+            fw = scan_branch_dir(fw_branch_path)
+            fb.firmwares += fw
 
     files = os.listdir(path)
     for f_path in files:
@@ -408,14 +460,14 @@ def install_file(args, srcpath, destdir, destfilename):
 
 def get_firmware_version(path):
     cmd = ['ath10k-fwencoder', '--info', path]
-    info = subprocess.check_output(cmd)
+    info = subprocess.check_output(cmd, universal_newlines=True)
     msg = email.message_from_string(info)
     return msg['FirmwareVersion']
 
 
 def get_board_crc32(path):
     cmd = ['ath10k-fwencoder', '--crc32', path]
-    return subprocess.check_output(cmd).strip()
+    return subprocess.check_output(cmd, universal_newlines=True).strip()
 
 
 # print indent
@@ -600,6 +652,41 @@ def cmd_list(args):
         level -= 1
 
 
+def cmd_list_hardware(args):
+    hws = scan_repository('.')
+    for hw in sorted(hws.values()):
+        print(hw.name)
+
+
+def cmd_list_branches(args):
+    hw_name = args.list_branches[0]
+    hw_ver = args.list_branches[1]
+
+    hws = scan_repository('.')
+    for hw in sorted(hws.values()):
+        if hw.name == '%s %s' % (hw_name, hw_ver):
+            for branch in sorted(hw.firmware_branches):
+                print(branch.name)
+
+            return
+
+
+def cmd_list_releases(args):
+    hw_name = args.list_releases[0]
+    hw_ver = args.list_releases[1]
+    fw_branch = args.list_releases[2]
+
+    hws = scan_repository('.')
+    for hw in sorted(hws.values()):
+        if hw.name == '%s %s' % (hw_name, hw_ver):
+            for branch in sorted(hw.firmware_branches):
+                if fw_branch == branch.name:
+                    for fw in branch.firmwares:
+                        print(fw.fw_ver)
+
+            return
+
+
 def cmd_list_lib_dir(args):
     fw_dir = args.list_lib_dir[0]
     ath11k_dir = os.path.join(fw_dir, ATH11K_DIR)
@@ -702,13 +789,13 @@ def cmd_get_latest_in_hw(args):
 
     hw = hws[hw_name]
 
-    fw_branch = sorted(hw.firmware_branches)[-1]
+    for branch in sorted(hw.firmware_branches, reverse=True):
+        if len(branch.firmwares) == 0:
+            # ignore an empty branch
+            continue
 
-    if len(fw_branch.firmwares) == 0:
-        # no firmware images in this branch, just use return value 0 with no output
-        sys.exit(0)
-
-    print(sorted(fw_branch.firmwares)[-1].path)
+        print(sorted(branch.firmwares)[-1].path)
+        break
 
     sys.exit(0)
 
@@ -871,6 +958,17 @@ def main():
     parser.add_argument('--list', action='store_true',
                         help='List all files found from the ath11k-firmware repository.')
 
+    parser.add_argument('--list-hardware', action='store_true',
+                        help='List all possible hardware versions found from the ath11k-firmware repository.')
+
+    parser.add_argument('--list-branches', action='store',
+                        nargs=2,
+                        help='List all firmware branches for for this hardware version.')
+
+    parser.add_argument('--list-releases', action='store',
+                        nargs=3,
+                        help='List all releases from a firmware branch.')
+
     parser.add_argument('--list-lib-dir', action='store',
                         nargs=1, metavar='LIB_FIRMWARE_DIRECTORY',
                         help='List all files found from the specified directory, which can either be a linux-firmware repository or /lib/firmware directory.')
@@ -903,6 +1001,12 @@ def main():
         cmd_check(args)
     elif args.list:
         cmd_list(args)
+    elif args.list_hardware:
+        cmd_list_hardware(args)
+    elif args.list_branches:
+        cmd_list_branches(args)
+    elif args.list_releases:
+        cmd_list_releases(args)
     elif args.list_lib_dir:
         cmd_list_lib_dir(args)
     elif args.install:
