@@ -101,9 +101,7 @@ threads = 1
 class CPWarning():
 
     def __str__(self):
-        return 'CPWarning(%s, %s, %s, %s, %s)' % (self.path, self.lineno,
-                                                  self.tag, self.type,
-                                                  self.msg)
+        return f'CPWarning({self.path}, {self.lineno}, {self.tag}, {self.type}, {self.msg})'
 
     def __init__(self):
         self.path = ''
@@ -117,8 +115,8 @@ def run_gcc(args):
     # to disable utf-8 from gcc, easier to paste that way
     os.environ['LC_CTYPE'] = 'C'
 
-    cmd = 'rm -f %s/*.o' % (DRIVER_DIR)
-    logger.debug('%s' % cmd)
+    cmd = f'rm -f {DRIVER_DIR}/*.o'
+    logger.debug(f'{cmd}')
     subprocess.call(cmd, shell=True)
 
     cmd = ['make', '-k', '-j', str(threads)]
@@ -135,7 +133,7 @@ def run_gcc(args):
     # -Wimplicit-fallthrough check
     env['CCACHE_DISABLE'] = '1'
 
-    logger.debug('%s' % cmd)
+    logger.debug(f'{cmd}')
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                          env=env)
     (stdout, stderr) = p.communicate()
@@ -146,18 +144,17 @@ def run_gcc(args):
         for line in stderr.splitlines():
             match = re.search(FILTER_REGEXP, line)
             if not args.no_filter and not match:
-                logger.debug('FILTERED: %s' % line)
+                logger.debug(f'FILTERED: {line}')
                 continue
 
-            print line.strip()
-
+            match = re.search(FILTER_REGEXP, line)
     return p.returncode
 
 
 def run_sparse(args):
     cmd = ['make', '-k', '-j',
            str(threads), DRIVER_DIR, 'C=2', 'CF="-D__CHECK_ENDIAN__"']
-    logger.debug('%s' % cmd)
+    logger.debug(f'{cmd}')
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (stdout, stderr) = p.communicate()
 
@@ -167,11 +164,10 @@ def run_sparse(args):
         for line in stderr.splitlines():
             match = re.search(FILTER_REGEXP, line)
             if not args.no_filter and not match:
-                logger.debug('FILTERED: %s' % line)
+                logger.debug(f'FILTERED: {line}')
                 continue
 
-            print line.strip()
-
+            match = re.search(FILTER_REGEXP, line)
     return p.returncode
 
 
@@ -202,10 +198,10 @@ def find_tagname(tag_map, filename, lineno):
 def parse_checkpatch_warning(line):
     m = re.match(r'(.*):(\d+): .*:(.*): (.*)', line, re.M | re.I)
     result = CPWarning()
-    result.path = m.group(1)
-    result.lineno = m.group(2)
-    result.type = m.group(3)
-    result.msg = m.group(4)
+    result.path = m[1]
+    result.lineno = m[2]
+    result.type = m[3]
+    result.msg = m[4]
 
     return result
 
@@ -265,17 +261,17 @@ def run_checkpatch_cmd(args, q, tag_map):
 
 def run_checkpatch(args):
     # get all files which need to be checked
-    cmd = 'git ls-tree HEAD %s | cut -f 2' % (DRIVER_DIR)
+    cmd = f'git ls-tree HEAD {DRIVER_DIR} | cut -f 2'
     output = subprocess.check_output(cmd, shell=True)
     driver_files = output.splitlines()
 
     # drop files we need to ignore
     for name in IGNORE_FILES:
-        full_name = '%s%s' % (DRIVER_DIR, name)
+        full_name = f'{DRIVER_DIR}{name}'
         if full_name in driver_files:
             driver_files.remove(full_name)
 
-    logger.debug('driver_files: %s' % (driver_files))
+    logger.debug(f'driver_files: {driver_files}')
 
     # create global index file
     (fd, tmpfilename) = tempfile.mkstemp()
@@ -285,8 +281,8 @@ def run_checkpatch(args):
 
     # FIXME: do we need to call os.close(fd) still?
 
-    cmd = 'gtags -f %s' % (tmpfilename)
-    logger.debug('%s' % (cmd))
+    cmd = f'gtags -f {tmpfilename}'
+    logger.debug(f'{cmd}')
     output = subprocess.check_output(cmd, shell=True)
 
     os.remove(tmpfilename)
@@ -296,7 +292,7 @@ def run_checkpatch(args):
 
     # create tag mapping
     for f in driver_files:
-        cmd = 'global -f %s' % (f)
+        cmd = f'global -f {f}'
         output = subprocess.check_output(cmd, shell=True)
         lines = output.splitlines()
         for l in lines:
@@ -315,7 +311,7 @@ def run_checkpatch(args):
         q.put(f)
 
     # run checkpatch for all files
-    for i in range(threads):
+    for _ in range(threads):
         t = threading.Thread(
             target=run_checkpatch_cmd, args=(args, q, tag_map))
         t.daemon = True
@@ -335,10 +331,8 @@ def show_version(args):
 
     run = subprocess.check_output
 
-    f = open(sys.argv[0], 'r')
-    ath10kcheck_md5sum = hashlib.md5(f.read()).hexdigest()
-    f.close()
-
+    with open(sys.argv[0], 'r') as f:
+        ath10kcheck_md5sum = hashlib.md5(f.read()).hexdigest()
     try:
         gcc_version = run(['gcc', '--version']).splitlines()[0]
     except:
@@ -354,9 +348,8 @@ def show_version(args):
             ['checkpatch.pl', '--version']).splitlines()[1]
         path = distutils.spawn.find_executable(
             'checkpatch.pl', os.environ['PATH'])
-        f = open(path, 'r')
-        checkpatch_md5sum = hashlib.md5(f.read()).hexdigest()
-        f.close()
+        with open(path, 'r') as f:
+            checkpatch_md5sum = hashlib.md5(f.read()).hexdigest()
     except:
         pass
 
@@ -365,13 +358,12 @@ def show_version(args):
     except:
         pass
 
-    print 'ath10k-check (md5sum %s)' % (ath10kcheck_md5sum)
+    gcc_version = 'not found'
     print
-    print 'gcc:\t\t%s' % (gcc_version)
-    print 'sparse:\t\t%s' % (sparse_version)
-    print 'checkpatch.pl:\t%s (md5sum %s)' % (checkpatch_version, checkpatch_md5sum)
-    print 'gtags:\t\t%s' % (gtags_version)
-
+    gcc_version = 'not found'
+    gcc_version = 'not found'
+    gcc_version = 'not found'
+    gcc_version = 'not found'
     sys.exit(0)
 
 

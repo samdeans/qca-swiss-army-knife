@@ -100,7 +100,7 @@ wmi_scan_event_names = [
 
 
 def wmi_event_scan(pevent, trace_seq, event, buf):
-    hdr = struct.unpack("<IIIIII", buf[0:24])
+    hdr = struct.unpack("<IIIIII", buf[:24])
     event = hdr[0]
     reason = hdr[1]
     channel_freq = hdr[2]
@@ -121,7 +121,7 @@ wmi_event_handlers = [
 
 
 def wmi_cmd_start_scan_handler(pevent, trace_seq, event, buf):
-    hdr = struct.unpack("<IIIIIIIIIIIIIII", buf[0:60])
+    hdr = struct.unpack("<IIIIIIIIIIIIIII", buf[:60])
     scan_id = hdr[0]
 
     trace_seq.puts("\t\t\t\tWMI_START_SCAN_CMDID scan_id %d\n" % (scan_id))
@@ -136,7 +136,7 @@ def ath10k_wmi_cmd_handler(pevent, trace_seq, event):
     buf = event['buf'].data
 
     # parse wmi header
-    hdr = struct.unpack("<HH", buf[0:4])
+    hdr = struct.unpack("<HH", buf[:4])
     buf = buf[4:]
 
     cmd_id = hdr[0]
@@ -153,7 +153,7 @@ def ath10k_wmi_event_handler(pevent, trace_seq, event):
     buf_len = long(event['buf_len'])
     buf = event['buf'].data
 
-    hdr = struct.unpack("<HH", buf[0:4])
+    hdr = struct.unpack("<HH", buf[:4])
     cmd_id = hdr[0]
 
     trace_seq.puts("id 0x%x len %d\n" % (cmd_id, buf_len))
@@ -177,7 +177,7 @@ def parse_htt_stats_wal_pdev_txrx(pevent, trace_seq, buf, tlv_length):
     msg_base_len = 136
 
     l = msg_base_len
-    hdr = struct.unpack("<IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII", buf[0:l])
+    hdr = struct.unpack("<IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII", buf[:l])
     buf = buf[l:]
 
     comp_queued = hdr[0]
@@ -221,7 +221,7 @@ def parse_htt_stats_wal_pdev_txrx(pevent, trace_seq, buf, tlv_length):
     msg_base_len = 60
 
     l = msg_base_len
-    hdr = struct.unpack("<IIIIIIIIIIIIIII", buf[0:l])
+    hdr = struct.unpack("<IIIIIIIIIIIIIII", buf[:l])
     buf = buf[l:]
 
     mid_ppdu_route_change = hdr[0]
@@ -246,7 +246,7 @@ def parse_htt_stats_wal_pdev_txrx(pevent, trace_seq, buf, tlv_length):
     msg_base_len = 12
 
     l = msg_base_len
-    hdr = struct.unpack("<III", buf[0:l])
+    hdr = struct.unpack("<III", buf[:l])
     buf = buf[l:]
 
     iram_free_size = hdr[0]
@@ -261,7 +261,7 @@ def parse_htt_stats_rx_reorder(pevent, trace_seq, buf, tlv_length):
     msg_base_len = 56
 
     l = msg_base_len
-    hdr = struct.unpack("<IIIIIIIIIIIIII", buf[0:l])
+    hdr = struct.unpack("<IIIIIIIIIIIIII", buf[:l])
     buf = buf[l:]
 
     deliver_non_qos = hdr[0]
@@ -288,9 +288,9 @@ def parse_htt_stats_rx_rate_info(pevent, trace_seq, buf, tlv_length):
 
     trace_seq.puts("\t\t\tRx Rate Info\n\t\t MCS_counts ")
 
-    for i in range(10):
-        l = msg_base_len
-        hdr = struct.unpack("<I", buf[0:l])
+    l = msg_base_len
+    for _ in range(10):
+        hdr = struct.unpack("<I", buf[:l])
         buf = buf[l:]
 
         mcs_count = hdr[0]
@@ -299,9 +299,9 @@ def parse_htt_stats_rx_rate_info(pevent, trace_seq, buf, tlv_length):
 
     trace_seq.puts("\n\t\t SGI_counts ")
 
-    for i in range(10):
-        l = msg_base_len
-        hdr = struct.unpack("<I", buf[0:l])
+    l = msg_base_len
+    for _ in range(10):
+        hdr = struct.unpack("<I", buf[:l])
         buf = buf[l:]
 
         sgi_count = hdr[0]
@@ -310,9 +310,9 @@ def parse_htt_stats_rx_rate_info(pevent, trace_seq, buf, tlv_length):
 
     trace_seq.puts("\n\t\t NSS_count ")
 
-    for i in range(4):
-        l = msg_base_len
-        hdr = struct.unpack("<I", buf[0:l])
+    l = msg_base_len
+    for _ in range(4):
+        hdr = struct.unpack("<I", buf[:l])
         buf = buf[l:]
 
         nss_count = hdr[0]
@@ -320,16 +320,16 @@ def parse_htt_stats_rx_rate_info(pevent, trace_seq, buf, tlv_length):
         trace_seq.puts("%d " % (nss_count))
 
     l = msg_base_len
-    hdr = struct.unpack("<I", buf[0:l])
+    hdr = struct.unpack("<I", buf[:l])
     buf = buf[l:]
 
     nsts_count = hdr[0]
 
     trace_seq.puts("\n\t\t NSTS_count %d \n\t\t STBC " % (nsts_count))
 
-    for i in range(10):
-        l = msg_base_len
-        hdr = struct.unpack("<I", buf[0:l])
+    l = msg_base_len
+    for _ in range(10):
+        hdr = struct.unpack("<I", buf[:l])
         buf = buf[l:]
 
         stbc = hdr[0]
@@ -338,9 +338,9 @@ def parse_htt_stats_rx_rate_info(pevent, trace_seq, buf, tlv_length):
 
     trace_seq.puts("\n\t\t BW_counts ")
 
-    for i in range(4):
-        l = msg_base_len
-        hdr = struct.unpack("<I", buf[0:l])
+    l = msg_base_len
+    for _ in range(4):
+        hdr = struct.unpack("<I", buf[:l])
         buf = buf[l:]
 
         bw_count = hdr[0]
@@ -349,9 +349,9 @@ def parse_htt_stats_rx_rate_info(pevent, trace_seq, buf, tlv_length):
 
     trace_seq.puts("\n\t\t Preamble_count ")
 
-    for i in range(6):
-        l = msg_base_len
-        hdr = struct.unpack("<I", buf[0:l])
+    l = msg_base_len
+    for _ in range(6):
+        hdr = struct.unpack("<I", buf[:l])
         buf = buf[l:]
 
         pream_count = hdr[0]
@@ -361,7 +361,7 @@ def parse_htt_stats_rx_rate_info(pevent, trace_seq, buf, tlv_length):
     msg_base_len = 36
 
     l = msg_base_len
-    hdr = struct.unpack("<IIIIIIBBBBII", buf[0:l])
+    hdr = struct.unpack("<IIIIIIBBBBII", buf[:l])
     buf = buf[l:]
 
     ldpc_count = hdr[0]
@@ -386,7 +386,7 @@ def parse_htt_stats_tx_ppdu_log(pevent, trace_seq, buf, tlv_length):
 
     # struct ol_fw_tx_dbg_ppdu_msg_hdr
     l = msg_hdr_len
-    hdr = struct.unpack("<BBBBI", buf[0:l])
+    hdr = struct.unpack("<BBBBI", buf[:l])
     buf = buf[l:]
 
     mpdu_bytes_array_len = hdr[0]
@@ -405,10 +405,10 @@ def parse_htt_stats_tx_ppdu_log(pevent, trace_seq, buf, tlv_length):
     trace_seq.puts("\t\t\trecords %d mpdu_bytes_array_len %d msdu_bytes_array_len %d mpdu_msdus_array_len %d reserved %d microsec_per_tick %d\n" %
                    (records, mpdu_bytes_array_len, msdu_bytes_array_len, mpdu_msdus_array_len, reserved, microsec_per_tick))
 
+    # struct ol_fw_tx_dbg_ppdu_base
+    l = msg_base_len
     for i in range(records):
-        # struct ol_fw_tx_dbg_ppdu_base
-        l = msg_base_len
-        hdr = struct.unpack("<HHIBBHIIIIIIBBBB", buf[0:l])
+        hdr = struct.unpack("<HHIBBHIIIIIIBBBB", buf[:l])
         buf = buf[l:]
 
         start_seq_num = hdr[0]
@@ -438,9 +438,9 @@ def parse_htt_stats_tx_rate_info(pevent, trace_seq, buf, tlv_length):
 
     trace_seq.puts("\t\t\tTx Rate Info\n\t\t MCS_counts ")
 
-    for i in range(10):
-        l = msg_base_len
-        hdr = struct.unpack("<I", buf[0:l])
+    l = msg_base_len
+    for _ in range(10):
+        hdr = struct.unpack("<I", buf[:l])
         buf = buf[l:]
 
         mcs_count = hdr[0]
@@ -449,9 +449,9 @@ def parse_htt_stats_tx_rate_info(pevent, trace_seq, buf, tlv_length):
 
     trace_seq.puts("\n\t\t SGI_counts ")
 
-    for i in range(10):
-        l = msg_base_len
-        hdr = struct.unpack("<I", buf[0:l])
+    l = msg_base_len
+    for _ in range(10):
+        hdr = struct.unpack("<I", buf[:l])
         buf = buf[l:]
 
         sgi_count = hdr[0]
@@ -460,9 +460,9 @@ def parse_htt_stats_tx_rate_info(pevent, trace_seq, buf, tlv_length):
 
     trace_seq.puts("\n\t\t NSS_count ")
 
-    for i in range(4):
-        l = msg_base_len
-        hdr = struct.unpack("<I", buf[0:l])
+    l = msg_base_len
+    for _ in range(4):
+        hdr = struct.unpack("<I", buf[:l])
         buf = buf[l:]
 
         nss_count = hdr[0]
@@ -471,9 +471,9 @@ def parse_htt_stats_tx_rate_info(pevent, trace_seq, buf, tlv_length):
 
     trace_seq.puts("\n\t\t STBC ")
 
-    for i in range(10):
-        l = msg_base_len
-        hdr = struct.unpack("<I", buf[0:l])
+    l = msg_base_len
+    for _ in range(10):
+        hdr = struct.unpack("<I", buf[:l])
         buf = buf[l:]
 
         stbc = hdr[0]
@@ -482,9 +482,9 @@ def parse_htt_stats_tx_rate_info(pevent, trace_seq, buf, tlv_length):
 
     trace_seq.puts("\n\t\t BW_counts ")
 
-    for i in range(4):
-        l = msg_base_len
-        hdr = struct.unpack("<I", buf[0:l])
+    l = msg_base_len
+    for _ in range(4):
+        hdr = struct.unpack("<I", buf[:l])
         buf = buf[l:]
 
         bw_count = hdr[0]
@@ -493,9 +493,9 @@ def parse_htt_stats_tx_rate_info(pevent, trace_seq, buf, tlv_length):
 
     trace_seq.puts("\n\t\t Preamble_count ")
 
-    for i in range(4):
-        l = msg_base_len
-        hdr = struct.unpack("<I", buf[0:l])
+    l = msg_base_len
+    for _ in range(4):
+        hdr = struct.unpack("<I", buf[:l])
         buf = buf[l:]
 
         pream_count = hdr[0]
@@ -505,7 +505,7 @@ def parse_htt_stats_tx_rate_info(pevent, trace_seq, buf, tlv_length):
     msg_base_len = 12
 
     l = msg_base_len
-    hdr = struct.unpack("<III", buf[0:l])
+    hdr = struct.unpack("<III", buf[:l])
     buf = buf[l:]
 
     ldpc_count = hdr[0]
@@ -519,9 +519,9 @@ def parse_htt_stats_tx_rate_info(pevent, trace_seq, buf, tlv_length):
 
     msg_base_len = 4
 
-    for i in range(10):
-        l = msg_base_len
-        hdr=struct.unpack("<I", buf[0:l])
+    l = msg_base_len
+    for _ in range(10):
+        hdr = struct.unpack("<I", buf[:l])
         buf = buf[l:]
 
         mu_mcs = hdr[0]
@@ -529,9 +529,9 @@ def parse_htt_stats_tx_rate_info(pevent, trace_seq, buf, tlv_length):
 
     trace_seq.puts("\n\t\t Mu_NSS ")
 
-    for i in range(2):
-        l = msg_base_len
-        hdr = struct.unpack("<I", buf[0:l])
+    l = msg_base_len
+    for _ in range(2):
+        hdr = struct.unpack("<I", buf[:l])
         buf = buf[l:]
 
         mu_nss = hdr[0]
@@ -543,7 +543,7 @@ def parse_htt_stats_tidq(pevent, trace_seq, buf, tlv_length):
     msg_base_len = 4
 
     l = msg_base_len
-    hdr = struct.unpack("<I", buf[0:l])
+    hdr = struct.unpack("<I", buf[:l])
     buf = buf[l:]
 
     wlan_dbg_tid_txq_status = hdr[0]
@@ -553,9 +553,9 @@ def parse_htt_stats_tidq(pevent, trace_seq, buf, tlv_length):
     else:
         trace_seq.puts("\n\t Frames queued to h/w Queue\n\t\t")
         msg_base_len = 2
+        l = msg_base_len
         for i in range(10):
-            l = msg_base_len
-            hdr = struct.unpack("<H", buf[0:l])
+            hdr = struct.unpack("<H", buf[:l])
             buf = buf[l:]
 
             num_pkts_queued = hdr[0]
@@ -563,9 +563,9 @@ def parse_htt_stats_tidq(pevent, trace_seq, buf, tlv_length):
             trace_seq.puts(" Q%d : %d" % (i, num_pkts_queued))
 
         trace_seq.puts("\n\t\t\t S/W Queue stats")
+        l = msg_base_len
         for i in range(20):
-            l = msg_base_len
-            hdr = struct.unpack("<H", buf[0:l])
+            hdr = struct.unpack("<H", buf[:l])
             buf = buf[l:]
 
             tid_sw_qdepth = hdr[0]
@@ -573,9 +573,9 @@ def parse_htt_stats_tidq(pevent, trace_seq, buf, tlv_length):
             trace_seq.puts("\n\t\t TID%d : %d" % (i, tid_sw_qdepth))
 
         trace_seq.puts("\n\t\t\t H/W Queue stats")
+        l = msg_base_len
         for i in range(20):
-            l = msg_base_len
-            hdr = struct.unpack("<H", buf[0:l])
+            hdr = struct.unpack("<H", buf[:l])
             buf = buf[l:]
 
             tid_hw_qdepth = hdr[0]

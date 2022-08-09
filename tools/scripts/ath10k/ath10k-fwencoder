@@ -139,12 +139,8 @@ class FWEncoderError(Exception):
 
 
 def get_output_name(fw_api=None):
-    if fw_api is not None:
-        api = fw_api
-    else:
-        api = DEFAULT_FW_API_VERSION
-
-    return 'firmware-%s.bin' % api
+    api = fw_api if fw_api is not None else DEFAULT_FW_API_VERSION
+    return f'firmware-{api}.bin'
 
 
 class FirmwareContainer:
@@ -152,7 +148,7 @@ class FirmwareContainer:
     def add_element(self, type_id, value):
         length = len(value)
         padding_len = padding_needed(length)
-        length = length + padding_len
+        length += padding_len
 
         padding = ctypes.create_string_buffer(padding_len)
 
@@ -169,7 +165,7 @@ class FirmwareContainer:
         self.buf_len = self.buf_len + 4 + 4 + len(value) + padding_len
 
     def add_u32(self, type_id, value):
-        if not type(value) is int:
+        if type(value) is not int:
             raise FWEncoderError('u32 IE %d is not int: %s' %
                                  (type_id, str(value)))
 
@@ -249,18 +245,14 @@ class FirmwareContainer:
         self.buf_len = length
 
     def write(self, name):
-        f = open(name, 'wb')
-        f.write(self.buf.raw[:self.buf_len])
-        f.close()
-
+        with open(name, 'wb') as f:
+            f.write(self.buf.raw[:self.buf_len])
         return self.buf_len
 
     def open(self, name):
-        f = open(name, 'rb')
-        self.buf = f.read()
-        self.buf_len = len(self.buf)
-        f.close()
-
+        with open(name, 'rb') as f:
+            self.buf = f.read()
+            self.buf_len = len(self.buf)
         offset = 0
 
         fmt = '<%dsb' % (self.signature_len)
@@ -272,7 +264,7 @@ class FirmwareContainer:
             return False
 
         offset = self.signature_len + 1
-        offset = offset + padding_needed(offset)
+        offset += padding_needed(offset)
 
         self.elements = {}
 
@@ -306,10 +298,8 @@ class Ath10kFirmwareContainer(object):
             raise FWEncoderError('file %s is too large, maximum size is %d' %
                                  (name, MAX_LEN))
 
-        f = open(name, 'rb')
-        buf = f.read()
-        f.close()
-
+        with open(name, 'rb') as f:
+            buf = f.read()
         return buf
 
     def set_fw_code_swap_image(self, fw_code_swap_image_name):
@@ -443,36 +433,39 @@ class Ath10kFirmwareContainer(object):
     def get_summary(self):
         s = ''
 
-        s = s + 'FileSize: %s\n' % (len(self.file))
-        s = s + 'FileCRC32: %08x\n' % (_crc32(self.file))
-        s = s + 'FileMD5: %s\n' % (hashlib.md5(self.file).hexdigest())
+        s += 'FileSize: %s\n' % (len(self.file))
+        s += 'FileCRC32: %08x\n' % (_crc32(self.file))
+        s += 'FileMD5: %s\n' % (hashlib.md5(self.file).hexdigest())
 
         if self.get_fw_version():
-            s = s + 'FirmwareVersion: %s\n' % (self.get_fw_version())
+            s += 'FirmwareVersion: %s\n' % (self.get_fw_version())
 
         if self.get_timestamp():
-            s = s + 'Timestamp: %s\n' % (self.get_timestamp_as_iso8601())
+            s += 'Timestamp: %s\n' % (self.get_timestamp_as_iso8601())
 
         if self.get_features():
-            s = s + 'Features: %s\n' % (self.get_features())
+            s += 'Features: %s\n' % (self.get_features())
 
         if self.get_fw_image():
-            s = s + 'FirmwareImageSize: %s\n' % (len(self.get_fw_image()))
-            s = s + 'FirmwareImageCRC32: %08x\n' % (_crc32(self.get_fw_image()))
+            s += 'FirmwareImageSize: %s\n' % (len(self.get_fw_image()))
+            s += 'FirmwareImageCRC32: %08x\n' % (_crc32(self.get_fw_image()))
 
         if self.get_otp_image():
-            s = s + 'OTPImageSize: %s\n' % (len(self.get_otp_image()))
-            s = s + 'OTPImageCRC32: %08x\n' % (_crc32(self.get_otp_image()))
+            s += 'OTPImageSize: %s\n' % (len(self.get_otp_image()))
+            s += 'OTPImageCRC32: %08x\n' % (_crc32(self.get_otp_image()))
 
         if self.get_wmi_op_version():
-            s = s + 'WMIOpVersion: %s\n' % (self.get_wmi_op_version())
+            s += 'WMIOpVersion: %s\n' % (self.get_wmi_op_version())
 
         if self.get_htt_op_version():
-            s = s + 'HTTOpVersion: %s\n' % (self.get_htt_op_version())
+            s += 'HTTOpVersion: %s\n' % (self.get_htt_op_version())
 
         if self.get_fw_code_swap_image():
-            s = s + 'FirmwareCodeSwapImageSize: %s\n' % (len(self.get_fw_code_swap_image()))
-            s = s + 'FirmwareCodeSwapImageCRC32: %08x\n' % (_crc32(self.get_fw_code_swap_image()))
+            s += 'FirmwareCodeSwapImageSize: %s\n' % (len(self.get_fw_code_swap_image()))
+            s += 'FirmwareCodeSwapImageCRC32: %08x\n' % (
+                _crc32(self.get_fw_code_swap_image())
+            )
+
 
         return s.strip()
 
@@ -562,10 +555,7 @@ def _crc32(buf):
 
 
 def padding_needed(length):
-    if length % 4 != 0:
-        return 4 - length % 4
-
-    return 0
+    return 4 - length % 4 if length % 4 != 0 else 0
 
 
 def is_int(val):
